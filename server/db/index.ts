@@ -1,6 +1,9 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 
+let database: ReturnType<typeof drizzle> | undefined;
+
 export const getDb = () => {
-  const { databaseUrl } = useRuntimeConfig();
-  return drizzle(databaseUrl);
+  // Reuse the pool across requests, including operator membership refreshes.
+  database ??= drizzle(useRuntimeConfig().databaseUrl);
+  return database;
 };
