@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import { anonymous } from "better-auth/plugins";
 import { z } from "zod";
 import { getDb } from "#server/db";
 import { user, session, account, verification } from "#server/db/schema";
@@ -26,6 +27,11 @@ export const auth = betterAuth({
     },
   }),
   baseURL: config.betterAuthUrl,
+  plugins: [anonymous({
+    generateName: () => "Visitor",
+    // Keep room ownership/history intact when a guest later creates an account.
+    disableDeleteAnonymousUser: true,
+  })],
   socialProviders: config.googleClientId && config.googleClientSecret
     ? {
         google: {
