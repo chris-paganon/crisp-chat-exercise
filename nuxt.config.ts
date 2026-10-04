@@ -7,7 +7,24 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      link: [{ rel: "icon", href: "/favicon.ico" }],
+      link: [
+        { rel: "icon", href: "/favicon.ico", sizes: "any" },
+        { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+        {
+          rel: "preload",
+          href: "/fonts/aeonikpro/aeonikpro_regular.woff2",
+          as: "font",
+          type: "font/woff2",
+          crossorigin: "anonymous",
+        },
+        {
+          rel: "preload",
+          href: "/fonts/aeonikpro/aeonikpro_medium.woff2",
+          as: "font",
+          type: "font/woff2",
+          crossorigin: "anonymous",
+        },
+      ],
     },
   },
   css: ["~/assets/css/tailwind.css", "~/assets/css/chat.css"],

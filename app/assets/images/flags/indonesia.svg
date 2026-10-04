@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <clipPath id="indonesia-flag">
+      <circle cx="12" cy="12" r="12" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#indonesia-flag)">
+    <path fill="#DC2626" d="M0 0h24v12H0z" />
+    <path fill="#FFF" d="M0 12h24v12H0z" />
+  </g>
+</svg>

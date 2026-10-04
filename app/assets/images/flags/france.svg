@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <clipPath id="france-flag">
+      <circle cx="12" cy="12" r="12" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#france-flag)">
+    <path fill="#0055A4" d="M0 0h8v24H0z" />
+    <path fill="#FFF" d="M8 0h8v24H8z" />
+    <path fill="#EF4135" d="M16 0h8v24h-8z" />
+  </g>
+</svg>
