@@ -6,6 +6,8 @@ Build a polished Vue/TypeScript chat in the existing Nuxt template, with large-f
 
 ## Architecture
 
+Initial setup is implemented: two-person room, invite, and text-message schemas; BetterAuth guests; operator inbox; visitor homepage/widget; and invitation acceptance. See [CHAT-SETUP.md](./CHAT-SETUP.md) for migration and usage. Message transport and file transfers are still pending.
+
 - Use the template's database and BetterAuth to persist users, chat sessions, and messages.
 - Send text messages through WebSockets: client A ↔ Nuxt server ↔ client B. The server saves messages before acknowledging and forwarding them.
 - Use the same WebSocket server for WebRTC signaling and transfer coordination.
