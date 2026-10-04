@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Copy, ExternalLink, Inbox, Link2, LoaderCircle, LogOu
 import { authClient } from "@/lib/auth-client";
 import { chatError } from "@/lib/chat-error";
 import type { ChatInvite, ChatRoom } from "~~/shared/types/chat";
+import ChatComposer from "@/components/chat/ChatComposer.vue";
 
 definePageMeta({ layout: false, middleware: "operator" });
 useSeoMeta({ title: "Inbox | Crisp" });
@@ -324,7 +325,7 @@ function dateLabel(value: string) {
             </div>
           </div>
         </div>
-        <ChatChatComposer />
+        <ChatComposer />
       </template>
       <div
         v-else

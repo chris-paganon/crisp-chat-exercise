@@ -3,6 +3,7 @@ import { Check, LoaderCircle, MessageSquare, RotateCcw, X } from "lucide-vue-nex
 import type { ChatRoom } from "~~/shared/types/chat";
 import { authClient } from "@/lib/auth-client";
 import { chatError } from "@/lib/chat-error";
+import ChatComposer from "@/components/chat/ChatComposer.vue";
 
 const props = defineProps<{ token?: string }>();
 const open = ref(Boolean(props.token));
@@ -142,7 +143,7 @@ watch(() => props.token, () => {
             </div>
           </template>
         </div>
-        <ChatChatComposer />
+        <ChatComposer />
         <footer class="visitor-widget-footer">
           <ChatCrispLogo /> <span>We run on conversations.</span>
         </footer>
