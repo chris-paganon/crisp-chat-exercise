@@ -1,196 +1,99 @@
 <script setup lang="ts">
-import {
-  ArrowRight,
-  BookOpen,
-  Boxes,
-  Database,
-  ExternalLink,
-  LockKeyhole,
-  Rocket,
-} from "lucide-vue-next";
+import { ArrowRight, Check, Heart, Inbox, Link2, MessageSquare, Plus } from "lucide-vue-next";
+import { authClient } from "@/lib/auth-client";
 
-useSeoMeta({
-  title: "DockIY Nuxt Template",
-  description: "A production-ready Nuxt starter for applications deployed with DockIY.",
-});
-
-const features = [
-  {
-    title: "Nuxt application",
-    description: "Nuxt 4, TypeScript, Tailwind CSS, and shadcn-vue.",
-    icon: Boxes,
-  },
-  {
-    title: "Authentication",
-    description: "Email verification, password reset, and PostgreSQL-backed sessions.",
-    icon: LockKeyhole,
-  },
-  {
-    title: "Database",
-    description: "PostgreSQL 18 with Drizzle ORM and auditable SQL migrations.",
-    icon: Database,
-  },
-  {
-    title: "Deployment",
-    description: "DockIY deployments with staging and production environments.",
-    icon: Rocket,
-  },
-];
-
-const documentation = [
-  {
-    title: "Nuxt Better Auth template guide",
-    description: "Set up, customize, and deploy this template.",
-    href: "https://dockiy.com/templates/nuxt-betterauth",
-  },
-  {
-    title: "What is DockIY?",
-    description: "Learn how DockIY manages self-hosted applications.",
-    href: "https://dockiy.com/guide/",
-  },
-  {
-    title: "Installation",
-    description: "Install and configure the DockIY base stack.",
-    href: "https://dockiy.com/guide/installation",
-  },
-  {
-    title: "Deploy applications",
-    description: "Ship an application with DockIY.",
-    href: "https://dockiy.com/guide/deploying-apps",
-  },
-];
+definePageMeta({ layout: false });
+useSeoMeta({ title: "Crisp — A little closer to your customers", description: "Good conversations make great customer experiences." });
+useHead({ meta: [{ name: "referrer", content: "no-referrer" }] });
+const route = useRoute();
+const token = computed(() => typeof route.query.invite === "string" ? route.query.invite : undefined);
+const { data: session } = await authClient.useSession(useFetch);
+const isOperator = computed(() => session.value && !session.value.user.isAnonymous);
+const operatorLink = "/auth?mode=sign-up&redirect=/operator";
 </script>
 
 <template>
-  <div class="overflow-hidden">
-    <section class="border-b">
-      <div class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 md:px-8 md:py-28 lg:grid-cols-[1fr_24rem] lg:items-center">
-        <div class="max-w-3xl">
-          <h1 class="text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-            Build with Nuxt.<br>
-            Deploy with DockIY.
-          </h1>
-          <p class="mt-6 max-w-2xl text-lg leading-8 text-pretty text-muted-foreground">
-            A full-stack starter with authentication, PostgreSQL, migrations, encrypted secrets, and production-ready Docker deployment already wired together.
-          </p>
-          <div class="mt-8 flex flex-wrap gap-3">
-            <UiButton as-child>
-              <a
-                href="https://dockiy.com/templates/nuxt-betterauth"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Read the template guide
-                <ArrowRight class="size-4" />
-              </a>
-            </UiButton>
-            <UiButton
-              as-child
-              variant="outline"
-            >
-              <NuxtLink to="/auth?mode=sign-up">
-                Try the auth flow
-              </NuxtLink>
-            </UiButton>
+  <div class="crisp-home">
+    <header class="home-header">
+      <NuxtLink
+        to="/"
+        aria-label="Crisp home"
+      ><ChatCrispLogo /></NuxtLink>
+      <nav
+        aria-label="Main navigation"
+        class="home-nav"
+      >
+        <a href="#experience">The experience</a><a href="#how-it-works">How it works</a>
+      </nav>
+      <div class="home-header-actions">
+        <NuxtLink
+          v-if="!isOperator"
+          to="/auth?mode=sign-in&redirect=/operator"
+          class="home-login"
+        >Log in</NuxtLink>
+        <NuxtLink
+          :to="isOperator ? '/operator' : operatorLink"
+          class="chat-button"
+        >{{ isOperator ? 'Open inbox' : 'Get started' }}<ArrowRight :size="16" /></NuxtLink>
+      </div>
+    </header>
+    <main>
+      <section
+        id="experience"
+        class="home-hero"
+      >
+        <div class="hero-orbit hero-orbit-one" /><div class="hero-orbit hero-orbit-two" />
+        <div class="hero-content">
+          <span class="hero-badge"><span class="hero-badge-dot" /> A space for better conversations</span>
+          <h1>A little closer to<br>your <span>customers.</span></h1>
+          <p>One conversation. Two people.<br>A simpler way to make someone’s day.</p>
+          <NuxtLink
+            :to="isOperator ? '/operator' : operatorLink"
+            class="chat-button hero-cta"
+          >{{ isOperator ? 'Go to your inbox' : 'Start a conversation' }}<ArrowRight :size="19" /></NuxtLink>
+          <div class="hero-caption">
+            <Check :size="14" /> A personal touch, from the very first hello.
+          </div>
+          <div class="hero-features">
+            <div><span class="hero-feature-icon feature-green"><MessageSquare :size="21" /></span><span><strong>All in one place</strong><small>Your conversations, together</small></span></div>
+            <div><span class="hero-feature-icon feature-purple"><Link2 :size="21" /></span><span><strong>Just share a link</strong><small>A warm welcome in one click</small></span></div>
+            <div><span class="hero-feature-icon feature-blue"><Heart :size="21" /></span><span><strong>Made for people</strong><small>Personal, simple, friendly</small></span></div>
           </div>
         </div>
-
-        <div class="rounded-xl border bg-muted/40 p-5 shadow-sm">
-          <div class="mb-4 flex items-center gap-2 text-sm font-medium">
-            <span
-              class="flex gap-1.5"
-              aria-hidden="true"
-            >
-              <span class="size-2.5 rounded-full bg-border" />
-              <span class="size-2.5 rounded-full bg-border" />
-              <span class="size-2.5 rounded-full bg-border" />
-            </span>
-            <span class="ml-2 text-muted-foreground">Get started</span>
-          </div>
-          <pre class="overflow-x-auto rounded-lg bg-foreground p-5 text-sm leading-7 text-background"><code><span class="text-background/50">$</span> cp .env.example .env
-<span class="text-background/50">$</span> docker compose up -d
-<span class="text-background/50">$</span> pnpm install
-<span class="text-background/50">$</span> pnpm db:migrate
-<span class="text-background/50">$</span> pnpm dev</code></pre>
-          <p class="mt-4 text-sm text-muted-foreground">
-            Requires Node.js 24+, pnpm 11+, and Docker.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section class="mx-auto w-full max-w-6xl px-4 py-16 md:px-8 md:py-20">
-      <div class="max-w-2xl">
-        <p class="text-sm font-semibold text-muted-foreground">
-          Included in the template
-        </p>
-        <h2 class="mt-2 text-3xl font-bold tracking-tight">
-          The foundation is ready
-        </h2>
-        <p class="mt-3 leading-7 text-muted-foreground">
-          Start on your product instead of assembling infrastructure and deployment tooling.
-        </p>
-      </div>
-
-      <div class="mt-10 grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2 lg:grid-cols-4">
-        <article
-          v-for="feature in features"
-          :key="feature.title"
-          class="bg-background p-6"
+        <div
+          class="home-inbox-preview"
+          aria-label="Preview of the operator inbox"
         >
-          <component
-            :is="feature.icon"
-            class="size-5"
-            aria-hidden="true"
-          />
-          <h3 class="mt-5 font-semibold">
-            {{ feature.title }}
-          </h3>
-          <p class="mt-2 text-sm leading-6 text-muted-foreground">
-            {{ feature.description }}
-          </p>
-        </article>
-      </div>
-    </section>
-
-    <section class="border-t bg-muted/30">
-      <div class="mx-auto w-full max-w-6xl px-4 py-16 md:px-8 md:py-20">
-        <div class="flex items-center gap-3">
-          <div class="flex size-10 items-center justify-center rounded-lg border bg-background">
-            <BookOpen
-              class="size-5"
-              aria-hidden="true"
-            />
+          <aside>
+            <ChatCrispLogo /><div class="preview-inbox-label">
+              <Inbox :size="17" /> Inbox <span>1</span>
+            </div><small>Your workspace</small><div class="preview-sidebar-item">
+              All conversations
+            </div>
+          </aside>
+          <div class="preview-room-list">
+            <strong>Conversations <Plus :size="15" /></strong><div class="preview-selected-room">
+              <span class="preview-avatar">V</span><div><b>Your next conversation</b><small>Waiting for a visitor to join</small></div>
+            </div>
           </div>
-          <div>
-            <h2 class="text-2xl font-bold tracking-tight">
-              DockIY
-            </h2>
+          <div class="preview-conversation">
+            <span class="preview-conversation-label">A great experience starts with a hello.</span><div class="preview-invite-icon">
+              <Link2 :size="26" />
+            </div><strong>Send a link. Make a connection.</strong><p>A private space for you and your customer.</p>
           </div>
         </div>
-
-        <div class="mt-8 grid gap-4 sm:grid-cols-2">
-          <a
-            v-for="link in documentation"
-            :key="link.href"
-            :href="link.href"
-            target="_blank"
-            rel="noreferrer"
-            class="group flex items-start justify-between gap-4 rounded-xl border bg-background p-5 transition-colors hover:bg-accent"
-          >
-            <span>
-              <span class="font-semibold">{{ link.title }}</span>
-              <span class="mt-1 block text-sm leading-6 text-muted-foreground">
-                {{ link.description }}
-              </span>
-            </span>
-            <ExternalLink
-              class="mt-0.5 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-              aria-hidden="true"
-            />
-          </a>
-        </div>
-      </div>
-    </section>
+      </section>
+      <section
+        id="how-it-works"
+        class="home-how"
+      >
+        <div><span class="chat-eyebrow">LESS FRICTION. MORE CONNECTION.</span><h2>You're one link away.</h2><p>Support that feels like talking to a person. Because it is.</p></div>
+        <ol><li><span>01</span><h3>Create a conversation</h3><p>Your operator inbox keeps everything in one place.</p></li><li><span>02</span><h3>Invite your visitor</h3><p>Share a private link. No visitor signup needed.</p></li><li><span>03</span><h3>Make yourself at home</h3><p>A familiar chat space, ready for what's next.</p></li></ol>
+      </section>
+    </main>
+    <footer class="home-footer">
+      <ChatCrispLogo /><span>A little help. A human connection.</span><span>Chat experience preview</span>
+    </footer>
+    <ChatVisitorWidget :token="token" />
   </div>
 </template>

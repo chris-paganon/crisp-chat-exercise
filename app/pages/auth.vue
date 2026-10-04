@@ -4,8 +4,8 @@ definePageMeta({
 });
 
 useSeoMeta({
-  title: "Sign in | Dockiy",
-  description: "Sign in or create a Dockiy account.",
+  title: "Operator sign in | Crisp",
+  description: "Sign in or create your operator account.",
 });
 </script>
 
@@ -16,14 +16,14 @@ useSeoMeta({
         <div
           class="inline-flex items-center rounded-md border bg-muted px-3 py-1 text-sm font-medium text-muted-foreground"
         >
-          DockIY
+          Crisp workspace
         </div>
         <div class="space-y-4">
           <h1 class="text-4xl font-semibold tracking-normal text-foreground">
-            Manage your workspace from one secure account.
+            A human connection starts with you.
           </h1>
           <p class="max-w-lg text-base leading-7 text-muted-foreground">
-            Sign in to continue, or create an account with your email and password.
+            Sign in or create an operator account to start conversations and invite your visitors. Visitors join through a private link, with no signup needed.
           </p>
         </div>
       </div>

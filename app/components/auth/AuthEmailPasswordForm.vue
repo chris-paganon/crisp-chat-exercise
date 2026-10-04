@@ -152,7 +152,7 @@ function returnToSignIn() {
           {{ isVerificationPending ? "Check your inbox" : isSignUp ? "Create your account" : "Welcome back" }}
         </UiCardTitle>
         <UiCardDescription>
-          {{ isVerificationPending ? `We sent a verification link to ${verificationEmail}.` : isSignUp ? "Start using Dockiy with your email and password." : "Sign in with your email and password." }}
+          {{ isVerificationPending ? `We sent a verification link to ${verificationEmail}.` : isSignUp ? "Create your operator account with your email and password." : "Sign in with your email and password." }}
         </UiCardDescription>
       </div>
 
