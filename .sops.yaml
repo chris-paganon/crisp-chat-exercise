@@ -1,0 +1,3 @@
+creation_rules:
+    - path_regex: ^\.enc\.(local|staging|production)\.env$
+      age: age1ae2kf72k2mvm8lrgdh3ssmkfczlnh5ycaf5nqywxqulcwehq8fkquftx4s

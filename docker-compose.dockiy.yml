@@ -1,0 +1,100 @@
+name: ${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}
+
+services:
+  db:
+    image: postgres:18.3-alpine3.23
+    shm_size: 128mb
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - db-data:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:${POSTGRES_DOCKER_PORT:-5434}:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - database
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  migrate:
+    profiles:
+      - tools
+    image: ${DOCKIY_MIGRATE_IMAGE:?DOCKIY_MIGRATE_IMAGE is required}
+    environment:
+      NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - database
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  app:
+    image: ${DOCKIY_APP_IMAGE:?DOCKIY_APP_IMAGE is required}
+    init: true
+    env_file:
+      - deploy.env
+    environment:
+      NODE_ENV: production
+      NITRO_HOST: 0.0.0.0
+      PORT: "3000"
+      NUXT_PUBLIC_APP_ENV: ${DOCKIY_ENVIRONMENT:?DOCKIY_ENVIRONMENT is required}
+      NUXT_PUBLIC_UMAMI_ENABLED: ${UMAMI_ENABLED:-false}
+      NUXT_PUBLIC_UMAMI_SCRIPT_URL: ${UMAMI_SCRIPT_URL:-}
+      NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - database
+      - reverse_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=reverse_proxy"
+      - "traefik.http.routers.${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}.rule=Host(`${DOCKIY_APP_HOST:?DOCKIY_APP_HOST is required}`)"
+      - "traefik.http.routers.${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}.entrypoints=websecure"
+      - "traefik.http.routers.${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}.tls=true"
+      - "traefik.http.routers.${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}.tls.certresolver=dockiy"
+      - "traefik.http.routers.${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}.service=${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}"
+      - "traefik.http.services.${DOCKIY_COMPOSE_PROJECT_NAME:?DOCKIY_COMPOSE_PROJECT_NAME is required}.loadbalancer.server.port=3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  db-data:
+
+networks:
+  database:
+  reverse_proxy:
+    name: reverse_proxy
+    external: true

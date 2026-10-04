@@ -1,0 +1,54 @@
+# Repository metadata and local tooling
+.git
+.github
+.husky
+.gitignore
+.gitattributes
+.vscode
+.idea
+.fleet
+.agents
+.codex
+.editorconfig
+**/.DS_Store
+AGENTS.md
+
+# Deployment inputs are consumed by DockIY, not the application build.
+dockiy.yml
+.dockiy.template.yml
+docker-compose*.yml
+docker-compose*.yaml
+Dockerfile
+.dockerignore
+scripts/build.sh
+scripts/start.sh
+scripts/healthcheck.sh
+scripts/pre-start.sh
+.sops.yaml
+.enc.env
+.enc.*.env
+deploy.env
+
+# Dependencies, caches, and local reports
+**/node_modules
+.pnpm-store
+.cache
+coverage
+logs
+**/*.log
+**/*.tsbuildinfo
+
+# Nuxt build outputs and runtime data
+.nuxt
+.nitro
+.output
+.data
+dist
+
+# Environment values are supplied at runtime.
+.env
+.env.*
+
+# Project documentation
+docs
+README.md

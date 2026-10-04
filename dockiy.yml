@@ -1,0 +1,18 @@
+name: crisp-chat-home
+images:
+    - app
+    - migrate
+environments:
+    staging:
+        host: nuxt-betterauth-staging.dockiy.com
+        compose_file: docker-compose.dockiy.yml
+        secrets_file: .enc.staging.env
+    production:
+        host: nuxt-betterauth.dockiy.com
+        compose_file: docker-compose.dockiy.yml
+        secrets_file: .enc.production.env
+hooks:
+    build: scripts/build.sh
+    pre_start: scripts/pre-start.sh
+    start: scripts/start.sh
+    healthcheck: scripts/healthcheck.sh

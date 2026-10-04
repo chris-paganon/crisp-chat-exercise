@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "Vue.volar",
+    "dbaeumer.vscode-eslint",
+    "antfu.goto-alias",
+    "EditorConfig.EditorConfig",
+    "oxc.oxc-vscode"
+  ]
+}

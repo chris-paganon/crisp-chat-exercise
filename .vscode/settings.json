@@ -1,0 +1,14 @@
+{
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .editorconfig",
+    "nuxt.config.ts": "nuxt.config.ts, tsconfig.json, drizzle.config.ts, .eslint*, eslint*, .oxlint*, oxlint*, .prettier*, prettier*,",
+    "docker-compose.yml": "docker-compose.yml, docker-compose.*.yml, Dockerfile, .dockerignore",
+    ".env.example": ".env, .env.*, .enc.*, .sops.yaml"
+  },
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.gotoLocation.multipleDefinitions": "goto"
+}
