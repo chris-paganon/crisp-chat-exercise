@@ -10,7 +10,7 @@ export default defineNuxtConfig({
       link: [{ rel: "icon", href: "/favicon.ico" }],
     },
   },
-  css: ["~/assets/css/tailwind.css"],
+  css: ["~/assets/css/tailwind.css", "~/assets/css/chat.css"],
 
   runtimeConfig: {
     databaseUrl: "postgresql://dockiy-nuxt-betterauth:secret-password@localhost:5432/dockiy-nuxt-betterauth",
