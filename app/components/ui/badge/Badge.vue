@@ -12,12 +12,13 @@ const props = defineProps<PrimitiveProps & {
   class?: HTMLAttributes["class"];
 }>();
 
-const delegatedProps = reactiveOmit(props, "class");
+const delegatedProps = reactiveOmit(props, "class", "variant");
 </script>
 
 <template>
   <Primitive
     data-slot="badge"
+    :data-variant="variant ?? 'default'"
     :class="cn(badgeVariants({ variant }), props.class)"
     v-bind="delegatedProps"
   >
