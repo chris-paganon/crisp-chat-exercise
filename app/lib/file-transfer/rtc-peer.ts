@@ -1,6 +1,6 @@
 import type { FileSignal } from "~~/shared/types/file-transfer";
 
-interface PeerOptions {
+interface RTCPeerOptions {
   id: string;
   sender: boolean;
   signal: (signal: FileSignal) => void;
@@ -9,13 +9,13 @@ interface PeerOptions {
   connectionLost: (state: RTCPeerConnectionState) => void;
 }
 
-export function createFilePeer(options: PeerOptions) {
-  const peer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+export function createRTCPeer(options: RTCPeerOptions) {
+  const RTCPeer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
   let stopped = false;
   const candidates: (RTCIceCandidateInit | null)[] = [];
   let signaling = Promise.resolve();
 
-  peer.onicecandidate = ({ candidate }) => {
+  RTCPeer.onicecandidate = ({ candidate }) => {
     if (stopped) return;
     try {
       options.signal({ candidate: candidate
@@ -30,12 +30,12 @@ export function createFilePeer(options: PeerOptions) {
       options.fail(asTransferError(error));
     }
   };
-  peer.onconnectionstatechange = () => {
-    if (!stopped && ["failed", "disconnected", "closed"].includes(peer.connectionState)) {
-      options.connectionLost(peer.connectionState);
+  RTCPeer.onconnectionstatechange = () => {
+    if (!stopped && ["failed", "disconnected", "closed"].includes(RTCPeer.connectionState)) {
+      options.connectionLost(RTCPeer.connectionState);
     }
   };
-  peer.ondatachannel = ({ channel }) => {
+  RTCPeer.ondatachannel = ({ channel }) => {
     if (stopped || options.sender) {
       channel.close();
       return;
@@ -46,13 +46,13 @@ export function createFilePeer(options: PeerOptions) {
   async function start() {
     if (!options.sender) return;
 
-    options.channel(peer.createDataChannel(`file:${options.id}`, { ordered: true }));
-    const offer = await peer.createOffer();
+    options.channel(RTCPeer.createDataChannel(`file:${options.id}`, { ordered: true }));
+    const offer = await RTCPeer.createOffer();
     if (stopped) return;
 
-    await peer.setLocalDescription(offer);
+    await RTCPeer.setLocalDescription(offer);
     if (!stopped) {
-      options.signal({ description: { type: "offer", sdp: peer.localDescription!.sdp } });
+      options.signal({ description: { type: "offer", sdp: RTCPeer.localDescription!.sdp } });
     }
   }
 
@@ -61,23 +61,23 @@ export function createFilePeer(options: PeerOptions) {
     signaling = signaling.then(async () => {
       if (stopped) return;
       if ("candidate" in signal) {
-        if (peer.remoteDescription) await peer.addIceCandidate(signal.candidate ?? undefined);
+        if (RTCPeer.remoteDescription) await RTCPeer.addIceCandidate(signal.candidate ?? undefined);
         else if (candidates.length < 256) candidates.push(signal.candidate);
         else throw new Error("Too many connection candidates.");
         return;
       }
 
-      if (peer.remoteDescription) {
+      if (RTCPeer.remoteDescription) {
         throw new Error("Unexpected connection renegotiation.");
       }
 
-      await peer.setRemoteDescription(signal.description);
+      await RTCPeer.setRemoteDescription(signal.description);
       if (stopped) return;
 
-      for (const candidate of candidates.splice(0)) await peer.addIceCandidate(candidate ?? undefined);
+      for (const candidate of candidates.splice(0)) await RTCPeer.addIceCandidate(candidate ?? undefined);
       if (!options.sender) {
-        await peer.setLocalDescription(await peer.createAnswer());
-        if (!stopped) options.signal({ description: { type: "answer", sdp: peer.localDescription!.sdp } });
+        await RTCPeer.setLocalDescription(await RTCPeer.createAnswer());
+        if (!stopped) options.signal({ description: { type: "answer", sdp: RTCPeer.localDescription!.sdp } });
       }
     }).catch((error) => {
       if (!stopped) options.fail(asTransferError(error));
@@ -89,7 +89,7 @@ export function createFilePeer(options: PeerOptions) {
     receiveSignal,
     close() {
       stopped = true;
-      peer.close();
+      RTCPeer.close();
     },
   };
 }

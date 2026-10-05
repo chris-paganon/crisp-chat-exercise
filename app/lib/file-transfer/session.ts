@@ -1,6 +1,6 @@
 import type { FileSignal } from "~~/shared/types/file-transfer";
 import type { FileSink } from "./storage";
-import { asTransferError, createFilePeer } from "./peer";
+import { asTransferError, createRTCPeer } from "./rtc-peer";
 import { createFileSender } from "./sender";
 import { createFileReceiver } from "./receiver";
 import { TRANSFER_TIMEOUT_MS } from "./protocol";
@@ -39,7 +39,7 @@ export function createReceiveSession(options: ReceiveSessionOptions): TransferSe
   return { receiveSignal, close };
 }
 
-/** Shared peer/channel lifecycle with the two file transfer implementations. */
+/** Shared WebRTC peer/channel lifecycle with the two file transfer implementations. */
 function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
   let stopped = false;
   let awaitingCompletion = false;
@@ -60,7 +60,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
     options.progress(bytes);
   }
 
-  const peer = createFilePeer({
+  const RTCPeer = createRTCPeer({
     id: options.id,
     sender: "source" in options,
     signal: options.signal,
@@ -140,14 +140,14 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
   }
 
   return {
-    start: () => { void peer.start().catch(fail); },
-    receiveSignal: peer.receiveSignal,
+    start: () => { void RTCPeer.start().catch(fail); },
+    receiveSignal: RTCPeer.receiveSignal,
     close() {
       stopped = true;
       clearTimeout(timer);
       stopTransfer?.();
       channel?.close();
-      peer.close();
+      RTCPeer.close();
     },
   };
 }

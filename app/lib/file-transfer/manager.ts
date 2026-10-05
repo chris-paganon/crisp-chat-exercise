@@ -4,7 +4,7 @@ import type { FileSink } from "./storage";
 import type { TransferSession } from "./session";
 import { ConnectionUnavailableError } from "../chat-error";
 import { isTransferActive } from "./model";
-import { asTransferError } from "./peer";
+import { asTransferError } from "./rtc-peer";
 import { createReceiveSession, createSendSession } from "./session";
 import { createFileDownload, openFileSink } from "./storage";
 
