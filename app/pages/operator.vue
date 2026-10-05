@@ -23,6 +23,7 @@ function dateLabel(value: string) {
     <OperatorInbox
       :class="mobileConversation ? 'hidden sm:flex' : 'flex'"
       @open="mobileConversation = true"
+      @claim-error="mobileConversation = false"
     />
 
     <main

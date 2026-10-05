@@ -3,7 +3,7 @@ import { LoaderCircle, MessageSquare, RefreshCw, Search, ShieldCheck } from "luc
 import { chatError } from "@/lib/chat-error";
 import type { ChatRoom } from "~~/shared/types/chat";
 
-const emit = defineEmits<{ open: [] }>();
+const emit = defineEmits<{ open: []; claimError: [] }>();
 const { data: rooms, error: loadError, status, refresh } = await useOperatorRooms();
 const hasLoadedRooms = ref(status.value === "success");
 watch(status, (value) => {
@@ -46,6 +46,7 @@ async function selectRoom(id: string) {
   catch (cause) {
     await refresh();
     error.value = chatError(cause, "Couldn't open the conversation. Please try again.");
+    emit("claimError");
   }
   finally { busy.value = false; }
 }
