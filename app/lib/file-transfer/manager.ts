@@ -66,10 +66,12 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
+  // Starts a transfer session for sender and receiver.
   function start(item: TransferView) {
     const resource = resources.get(item.id)!;
     clearTimeout(resource.timer);
     update(item, { status: "connecting" });
+
     resource.session = createTransferSession({
       id: item.id,
       size: item.size,
@@ -101,8 +103,10 @@ export function createTransferManager(options: ManagerOptions) {
     resource.session.start();
   }
 
+  // Sender offers a file to the receiver.
   function offer(file: File) {
     if (disposed || [...transfers.values()].some(isTransferActive)) return;
+
     const item: TransferView = {
       id: crypto.randomUUID(), name: file.name, size: file.size, mime: file.type,
       direction: "outgoing", status: "offering", bytes: 0, createdAt: Date.now(),
@@ -110,6 +114,7 @@ export function createTransferManager(options: ManagerOptions) {
     transfers.set(item.id, item);
     resources.set(item.id, { source: file, downloads: [], timer: setTimeout(() => fail(item, new Error("No confirmation received for the file offer.")), 10000) });
     publish();
+
     try {
       options.send({ type: "file-offer", id: item.id, name: item.name, size: item.size, mime: item.mime });
     }
@@ -121,9 +126,11 @@ export function createTransferManager(options: ManagerOptions) {
   async function accept(id: string) {
     const item = transfers.get(id);
     if (!item || item.direction !== "incoming" || item.status !== "offered") return;
+
     const resource = resources.get(id)!;
     update(item, { status: "preparing" });
     resource.timer = setTimeout(() => fail(item, new Error("Preparing file storage timed out.")), 30000);
+
     try {
       const sink = await openFileSink(id, item.size);
       if (disposed || transfers.get(id)?.status !== "preparing") {
@@ -131,7 +138,7 @@ export function createTransferManager(options: ManagerOptions) {
         return;
       }
       resource.sink = sink;
-      // Be ready for signals before asking the sender to create its offer.
+      // Prepare to receive WebRTC signals before accepting the file offer.
       start(item);
       options.send({ type: "file-accept", id });
     }
@@ -142,6 +149,7 @@ export function createTransferManager(options: ManagerOptions) {
 
   function receive(event: FileServerEvent) {
     if (disposed) return;
+
     let item = transfers.get(event.id);
     if (event.type === "file-offered") {
       if (event.senderId === options.userId()) {
@@ -170,6 +178,7 @@ export function createTransferManager(options: ManagerOptions) {
       }
       return;
     }
+
     if (!item || !isTransferActive(item)) return;
     switch (event.type) {
       case "file-accepted":
@@ -197,6 +206,7 @@ export function createTransferManager(options: ManagerOptions) {
   function stop(id: string, decline = false) {
     const item = transfers.get(id);
     if (!item || !isTransferActive(item)) return;
+
     try {
       options.send({ type: decline ? "file-decline" : "file-cancel", id });
     }
@@ -219,7 +229,9 @@ export function createTransferManager(options: ManagerOptions) {
   function remove(id: string) {
     const item = transfers.get(id);
     if (!item || isTransferActive(item)) return;
-    const resource = resources.get(id)!;
+    const resource = resources.get(id);
+    if (!resource) return;
+
     resource.downloads.forEach(revoke => revoke());
     void resource.sink?.remove();
     resources.delete(id);
