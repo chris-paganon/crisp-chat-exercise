@@ -205,18 +205,18 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
-  function stop(id: string, decline = false) {
+  function stop(id: string, type: "file-cancel" | "file-decline") {
     const item = transfers.get(id);
     if (!item || !isTransferActive(item)) return;
 
     try {
-      options.send({ type: decline ? "file-decline" : "file-cancel", id });
+      options.send({ type, id });
     }
     catch (error) {
       if (!(error instanceof ConnectionUnavailableError)) throw error;
     }
     finally {
-      finish(item, decline ? "declined" : "cancelled");
+      finish(item, type === "file-cancel" ? "cancelled" : "declined");
     }
   }
 
@@ -260,7 +260,7 @@ export function createTransferManager(options: ManagerOptions) {
   function dispose() {
     try {
       for (const item of transfers.values()) {
-        if (isTransferActive(item)) stop(item.id);
+        if (isTransferActive(item)) stop(item.id, "file-cancel");
       }
     }
     finally {

@@ -127,8 +127,8 @@ async function sendMessage(body: string) {
           v-else
           :transfer="entry.item"
           @accept="files.accept(entry.item.id)"
-          @decline="files.stop(entry.item.id, true)"
-          @cancel="files.stop(entry.item.id)"
+          @decline="files.stop(entry.item.id, 'file-decline')"
+          @cancel="files.stop(entry.item.id, 'file-cancel')"
           @download="files.download(entry.item.id)"
           @remove="files.remove(entry.item.id)"
         />
