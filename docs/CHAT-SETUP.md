@@ -1,6 +1,6 @@
 # Chat room setup
 
-The chat supports visitor-created rooms, operator claiming, and saved text messages over WebSockets. File transfers remain disabled.
+The chat supports visitor-created rooms, operator claiming, and saved text messages over WebSockets. File offers and their lifecycle are also saved, while file bytes use P2P WebRTC. See [the README](../README.md#file-transfers) for transfer behavior and limitations.
 
 ## Setup and use
 
@@ -15,6 +15,7 @@ Closing/reopening the widget or reloading the homepage keeps the same room while
 ## Data and access
 
 - `chat_room`: a required, unique visitor slot and an optional operator slot; participants must be different users.
+- `chat_file_transfer`: a durable file-history row with room/participants, file metadata and content fingerprint, lifecycle status, version, and timestamps. File bytes and receiver checkpoints stay in the browser. Run `pnpm db:migrate` to add this table; reload existing tabs after updating the transfer protocol.
 - `chat_message`: a client-generated UUID primary key, text body, sender, room, and creation/read timestamps. The same UUID identifies the pending UI message, saved record, acknowledgement, and retries. Duplicate sends return the saved record only when its room and sender match the connection.
 
 Registered users are operators; anonymous users are visitors. Visitor room creation is idempotent, including concurrent requests. Operators see unclaimed rooms and their own claimed rooms. Claiming locks the room inside a transaction, so only one operator can take it. Reopening by that operator is idempotent. Room detail reads require membership, and another operator cannot read or claim an already-claimed room.
