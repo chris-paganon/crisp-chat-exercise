@@ -2,9 +2,18 @@
 import { Paperclip, SendHorizontal } from "lucide-vue-next";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
 
-const props = defineProps<{ disabled?: boolean }>();
+const props = defineProps<{ disabled?: boolean; fileBusy?: boolean }>();
 const draft = defineModel<string>({ default: "" });
-const emit = defineEmits<{ send: [body: string] }>();
+const emit = defineEmits<{ send: [body: string]; attach: [file: File] }>();
+
+const fileInput = ref<HTMLInputElement>();
+
+function attach(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file && !props.disabled && !props.fileBusy) emit("attach", file);
+  input.value = "";
+}
 
 const canSend = computed(() => !props.disabled && Boolean(draft.value.trim())
   && draft.value.trim().length <= MAX_CHAT_MESSAGE_LENGTH);
@@ -45,14 +54,23 @@ function onEnter(event: KeyboardEvent) {
       />
       <div class="mt-1 flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
+          <input
+            ref="fileInput"
+            class="hidden"
+            type="file"
+            aria-label="Choose a file"
+            :disabled="disabled || fileBusy"
+            @change="attach"
+          >
           <UiButton
             variant="ghost"
             size="icon-sm"
             class="size-6 text-muted-foreground"
-            disabled
+            :disabled="disabled || fileBusy"
             type="button"
-            aria-label="Attach a file (coming soon)"
-            title="Coming soon"
+            aria-label="Attach a file"
+            :title="fileBusy ? 'One file transfer at a time' : 'Attach a file'"
+            @click="fileInput?.click()"
           >
             <Paperclip :size="19" />
           </UiButton>

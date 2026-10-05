@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { MessageSquare } from "lucide-vue-next";
+import ChatFileTransfer from "@/components/chat/ChatFileTransfer.vue";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 import { timeLabel } from "@/lib/date";
 
@@ -7,14 +8,20 @@ const props = defineProps<{ roomId: string; peerName: string }>();
 const chat = useChatConnection(props.roomId);
 const { userId, connection } = chat;
 const { messages, send, retry } = useChatMessages(props.roomId, chat);
+const files = useFileTransfers(chat);
+const { transfers, busy: fileBusy } = files;
 
 const draft = useState<string>(`chat-draft:${props.roomId}`, () => "");
 const messageList = ref<HTMLElement>();
 
-const sortedMessages = computed(() => {
-  return [...messages.value].sort((a, b) =>
-    a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
-});
+const sortedItems = computed(() => [
+  ...messages.value.map(item => ({
+    kind: "message" as const, item, createdAt: item.createdAt.getTime(), outgoing: item.senderId === userId.value,
+  })),
+  ...transfers.value.map(item => ({
+    kind: "file" as const, item, createdAt: item.createdAt, outgoing: item.direction === "outgoing",
+  })),
+].sort((a, b) => a.createdAt - b.createdAt || a.item.id.localeCompare(b.item.id)));
 
 const statusLabel = computed(() => {
   switch (connection.value) {
@@ -31,7 +38,7 @@ const statusLabel = computed(() => {
   }
 });
 
-watch(messages, async () => {
+watch([messages, transfers], async () => {
   const list = messageList.value;
   const nearBottom = !list || list.scrollHeight - list.scrollTop - list.clientHeight < 80;
   await nextTick();
@@ -69,7 +76,7 @@ async function sendMessage(body: string) {
       aria-live="polite"
     >
       <div
-        v-if="!sortedMessages.length"
+        v-if="!sortedItems.length"
         class="flex min-h-55 flex-col items-center justify-center px-3 py-5 text-center"
       >
         <div class="mb-4 grid size-14 place-items-center rounded-lg border bg-accent text-primary">
@@ -83,43 +90,56 @@ async function sendMessage(body: string) {
         </p>
       </div>
       <article
-        v-for="item in sortedMessages"
-        :key="item.id"
+        v-for="entry in sortedItems"
+        :key="entry.item.id"
         class="mb-4.5 flex flex-col"
-        :class="item.senderId === userId ? 'items-end' : 'items-start'"
+        :class="entry.outgoing ? 'items-end' : 'items-start'"
       >
-        <span class="mx-1 mb-1 text-xs text-muted-foreground">{{ item.senderId === userId ? 'You' : peerName }}</span>
-        <p
-          class="max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm/relaxed wrap-anywhere whitespace-pre-wrap"
-          :class="[item.senderId === userId ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm bg-muted text-foreground', { 'ring-2 ring-destructive/50': item.status === 'failed' }]"
-        >
-          {{ item.body }}
-        </p>
-        <div class="mx-1 mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-          <time :datetime="item.createdAt.toISOString()">{{ timeLabel(item.createdAt) }}</time>
-          <span v-if="item.senderId === userId">{{ item.status === 'sending' ? 'Sending…' : item.status === 'sent' ? 'Sent' : 'Failed' }}</span>
-          <button
-            v-if="item.status === 'failed'"
-            class="font-medium text-primary underline outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground"
-            type="button"
-            :disabled="connection !== 'connected'"
-            @click="retry(item.id)"
+        <span class="mx-1 mb-1 text-xs text-muted-foreground">{{ entry.outgoing ? 'You' : peerName }}</span>
+        <template v-if="entry.kind === 'message'">
+          <p
+            class="max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm/relaxed wrap-anywhere whitespace-pre-wrap"
+            :class="[entry.outgoing ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm bg-muted text-foreground', { 'ring-2 ring-destructive/50': entry.item.status === 'failed' }]"
           >
-            Retry
-          </button>
-        </div>
-        <p
-          v-if="item.error"
-          class="mt-1 max-w-[85%] text-xs text-destructive"
-        >
-          {{ item.error }}
-        </p>
+            {{ entry.item.body }}
+          </p>
+          <div class="mx-1 mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <time :datetime="entry.item.createdAt.toISOString()">{{ timeLabel(entry.item.createdAt) }}</time>
+            <span v-if="entry.outgoing">{{ entry.item.status === 'sending' ? 'Sending…' : entry.item.status === 'sent' ? 'Sent' : 'Failed' }}</span>
+            <button
+              v-if="entry.item.status === 'failed'"
+              class="font-medium text-primary underline outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground"
+              type="button"
+              :disabled="connection !== 'connected'"
+              @click="retry(entry.item.id)"
+            >
+              Retry
+            </button>
+          </div>
+          <p
+            v-if="entry.item.error"
+            class="mt-1 max-w-[85%] text-xs text-destructive"
+          >
+            {{ entry.item.error }}
+          </p>
+        </template>
+        <ChatFileTransfer
+          v-else
+          :transfer="entry.item"
+          @accept="files.accept(entry.item.id)"
+          @decline="files.stop(entry.item.id, true)"
+          @cancel="files.stop(entry.item.id)"
+          @download="files.download(entry.item.id)"
+          @remove="files.remove(entry.item.id)"
+        />
       </article>
     </div>
     <ChatComposer
       v-model="draft"
       :disabled="connection !== 'connected'"
+      :file-busy="fileBusy"
       @send="sendMessage"
+      @attach="files.offer"
     />
   </section>
 </template>
