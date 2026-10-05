@@ -1,6 +1,6 @@
-import type { FileOffer, FileEndStatus } from "~~/shared/types/file-transfer";
+import type { FileOffer, FileEndStatus, FileLifecycle } from "~~/shared/types/file-transfer";
 
-export type TransferStatus = "offering" | "offered" | "preparing" | "connecting" | "transferring" | "finishing" | "interrupted" | FileEndStatus;
+export type TransferStatus = "verifying" | "waiting" | "offering" | "offered" | "preparing" | "connecting" | "transferring" | "finishing" | "interrupted" | FileEndStatus;
 export interface TransferView extends FileOffer {
   direction: "incoming" | "outgoing";
   status: TransferStatus;
@@ -9,6 +9,9 @@ export interface TransferView extends FileOffer {
   message?: string;
   version?: number;
   available?: boolean;
+  localBytes?: number;
+  needsSource?: boolean;
+  persistedStatus?: FileLifecycle;
 }
 
 export function isTransferActive(transfer: TransferView) {
@@ -32,6 +35,12 @@ export function summarizeTransfers(transfers: TransferView[]): TransferSummary |
   if (active) {
     let label: string;
     switch (active.status) {
+      case "verifying":
+        label = "Verifying file…";
+        break;
+      case "waiting":
+        label = "Waiting to resume or for a transfer slot…";
+        break;
       case "offering":
         label = "Offering file…";
         break;
@@ -51,12 +60,17 @@ export function summarizeTransfers(transfers: TransferView[]): TransferSummary |
         label = "Confirming receipt…";
     }
 
-    return { label, failed: false };
+    const count = transfers.filter(isTransferActive).length;
+    return { label: count > 1 ? `${count} files active · ${label}` : label, failed: false };
   }
 
-  const downloads = transfers.filter(item => item.direction === "incoming" && item.status === "completed");
+  const downloads = transfers.filter(item => item.direction === "incoming" && item.status === "completed" && item.available);
   if (downloads.length) {
     return { label: downloads.length === 1 ? "File ready to download" : `${downloads.length} files ready to download`, failed: false };
+  }
+
+  if (transfers.some(item => item.status === "interrupted")) {
+    return { label: "File transfer interrupted · open to resume", failed: false };
   }
 
   if (transfers.at(-1)?.status === "failed") {

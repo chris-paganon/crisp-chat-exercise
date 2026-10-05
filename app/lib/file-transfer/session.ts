@@ -7,6 +7,7 @@ import { TRANSFER_TIMEOUT_MS } from "./protocol";
 
 interface SessionOptions {
   id: string;
+  offset: number;
   sendSignal: (signal: FileSignal) => void;
   progress: (bytes: number) => void;
   connected: () => void;
@@ -65,7 +66,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
       if (!stopped) {
         options.fail(transportError ?? new Error("File transfer timed out. Please send it again."));
       }
-    }, TRANSFER_TIMEOUT_MS);
+    }, awaitingCompletion ? 120000 : TRANSFER_TIMEOUT_MS);
   }
   function awaitServerResult(error: unknown) {
     if (stopped || transportError) return;
@@ -117,7 +118,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
       const sender = createFileSender(current, options.source, progress, () => {
         awaitCompletion();
         options.sent();
-      });
+      }, options.offset);
       transfer = sender;
       startTransfer = sender.start;
     }
@@ -125,7 +126,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
       transfer = createFileReceiver(current, options.size, options.sink, progress, (file) => {
         awaitCompletion();
         options.complete(file);
-      }, fail);
+      }, fail, options.offset, awaitCompletion);
     }
     stopTransfer = transfer.stop;
 

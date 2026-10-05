@@ -59,7 +59,14 @@ export async function openResumableFileSink(key: LocalTransferKey, size: number,
   preparing = reserve.catch(() => {});
   await reserve;
 
-  const worker = new Worker(new URL("./storage-worker.ts", import.meta.url), { type: "module" });
+  let worker: Worker;
+  try {
+    worker = new Worker(new URL("./storage-worker.ts", import.meta.url), { type: "module" });
+  }
+  catch (error) {
+    reservations.delete(name);
+    throw error;
+  }
   let sequence = 0;
   let closed = false;
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
@@ -90,7 +97,13 @@ export async function openResumableFileSink(key: LocalTransferKey, size: number,
     return new Promise<T>((resolve, reject) => {
       const requestId = ++sequence;
       pending.set(requestId, { resolve: value => resolve(value as T), reject });
-      worker.postMessage({ ...command, requestId }, transfer);
+      try {
+        worker.postMessage({ ...command, requestId }, transfer);
+      }
+      catch (error) {
+        pending.delete(requestId);
+        reject(error instanceof Error ? error : new Error("File storage request failed."));
+      }
     });
   }
 

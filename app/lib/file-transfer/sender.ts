@@ -1,8 +1,12 @@
 import { BATCH_BYTES, CHUNK_BYTES, readFileControl } from "./protocol";
 
 /** Stop-and-wait batches: an ACK means bytes were written, not merely received. */
-export function createFileSender(channel: RTCDataChannel, file: File, progress: (bytes: number) => void, sent: () => void = () => {}) {
-  let offset = 0;
+export function createFileSender(channel: RTCDataChannel, file: File, progress: (bytes: number) => void, sent: () => void = () => {}, startOffset = 0) {
+  if (!Number.isSafeInteger(startOffset) || startOffset < 0 || startOffset > file.size) {
+    throw new Error("Invalid sending offset.");
+  }
+
+  let offset = startOffset;
   let stopped = false;
   let acknowledge: (() => void) | undefined;
   let rejectWait: ((error: Error) => void) | undefined;

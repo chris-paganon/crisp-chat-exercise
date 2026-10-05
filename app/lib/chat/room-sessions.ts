@@ -21,7 +21,7 @@ export function createRoomSessions(options: RoomSessionsOptions = {}) {
     const session = scope.run(() => {
       const chat = createChatConnection(roomId);
       const messages = createChatMessages(roomId, chat);
-      const files = createFileTransfers(chat);
+      const files = createFileTransfers(roomId, chat);
       const views = ref(0);
 
       watch(files.transfers, (items, previous) => {
@@ -91,15 +91,13 @@ export function createRoomSessions(options: RoomSessionsOptions = {}) {
     for (const { session } of entries.values()) {
       session.files.disconnect();
       session.chat.close();
-      // Release browser storage on page exit, including completed downloads.
-      session.files.transfers.value.forEach(item => session.files.remove(item.id));
     }
   }
 
   function resume() {
     suspended = false;
     for (const { session } of entries.values()) {
-      if (session.views.value) {
+      if (session.views.value || session.files.busy.value) {
         session.chat.connect();
       }
     }

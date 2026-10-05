@@ -4,13 +4,24 @@ import type { TransferView } from "@/lib/file-transfer/model";
 import { isTransferActive, transferPercentage } from "@/lib/file-transfer/model";
 
 const props = defineProps<{ transfer: TransferView }>();
-defineEmits<{ accept: []; decline: []; cancel: []; download: []; remove: [] }>();
+const emit = defineEmits<{ accept: []; resume: [file?: globalThis.File]; decline: []; cancel: []; download: []; remove: [] }>();
+const sourceInput = ref<HTMLInputElement>();
+
+function reselect(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file) emit("resume", file);
+
+  input.value = "";
+}
 const active = computed(() => isTransferActive(props.transfer));
 const incoming = computed(() => props.transfer.direction === "incoming");
 const percentage = computed(() => transferPercentage(props.transfer));
-const showProgress = computed(() => ["transferring", "finishing", "completed"].includes(props.transfer.status));
+const showProgress = computed(() => ["transferring", "finishing", "completed", "interrupted"].includes(props.transfer.status));
 const label = computed(() => {
   switch (props.transfer.status) {
+    case "verifying": return "Verifying the source file…";
+    case "waiting": return "Waiting for the other participant or a free transfer slot…";
     case "offering": return "Sending offer…";
     case "offered": return incoming.value ? "Wants to send you a file" : "Waiting for permission…";
     case "preparing": return "Preparing storage…";
@@ -54,12 +65,12 @@ function sizeLabel(bytes: number) {
         </p>
       </div>
       <UiButton
-        v-if="!active"
+        v-if="!active && incoming && (transfer.available || transfer.localBytes)"
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label="Dismiss file transfer"
-        title="Dismiss and release browser storage"
+        aria-label="Remove local file"
+        title="Remove local file and keep chat history"
         @click="$emit('remove')"
       >
         <X :size="14" />
@@ -99,9 +110,30 @@ function sizeLabel(bytes: number) {
       v-if="incoming && transfer.status === 'completed' && transfer.available"
       class="mt-2 text-xs text-muted-foreground"
     >
-      You can return to this conversation to download. Download before leaving this page.
+      This file is saved in this browser. Downloading keeps the local copy until you remove it.
+    </p>
+    <p
+      v-if="transfer.status === 'interrupted'"
+      class="mt-2 text-xs text-muted-foreground"
+    >
+      Saved progress is kept in this browser. Both participants must be online to resume.
     </p>
     <div class="mt-3 flex flex-wrap gap-2">
+      <input
+        ref="sourceInput"
+        type="file"
+        class="hidden"
+        aria-label="Reselect the original file"
+        @change="reselect"
+      >
+      <UiButton
+        v-if="transfer.status === 'interrupted' || transfer.needsSource"
+        type="button"
+        size="sm"
+        @click="transfer.needsSource ? sourceInput?.click() : emit('resume')"
+      >
+        {{ transfer.needsSource ? 'Reselect original file' : 'Resume transfer' }}
+      </UiButton>
       <template v-if="incoming && transfer.status === 'offered'">
         <UiButton
           type="button"
@@ -120,7 +152,7 @@ function sizeLabel(bytes: number) {
         </UiButton>
       </template>
       <UiButton
-        v-else-if="active"
+        v-else-if="active || transfer.status === 'interrupted'"
         type="button"
         size="sm"
         variant="outline"

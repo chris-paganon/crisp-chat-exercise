@@ -2,14 +2,16 @@ import { computed, ref, watch } from "vue";
 import type { ChatConnection } from "./connection";
 import type { FileServerEvent } from "~~/shared/types/file-transfer";
 import type { TransferView } from "@/lib/file-transfer/model";
-import { isTransferActive } from "@/lib/file-transfer/model";
+import { isFileTerminal } from "~~/shared/types/file-transfer";
 import { createTransferManager } from "@/lib/file-transfer/manager";
 
-export function createFileTransfers(chat: ChatConnection) {
+export function createFileTransfers(roomId: string, chat: ChatConnection) {
   const transfers = ref<TransferView[]>([]);
-  const busy = computed(() => transfers.value.some(isTransferActive));
+  const busy = computed(() => transfers.value.some(item => !isFileTerminal(item.status)));
 
   const manager = createTransferManager({
+    roomId,
+    connected: () => chat.connection.value === "connected",
     userId: () => chat.userId.value,
     send: chat.transmit,
     changed: (items) => { transfers.value = items; },
@@ -17,6 +19,7 @@ export function createFileTransfers(chat: ChatConnection) {
   const unsubscribe = chat.onEvent((event) => {
     if (event.type === "ready") {
       event.files.forEach(manager.restore);
+      manager.connected();
     }
     if (event.type.startsWith("file-")) {
       manager.receiveServerEvent(event as FileServerEvent);

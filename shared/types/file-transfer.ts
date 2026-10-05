@@ -6,7 +6,11 @@ export interface FileOffer {
   fingerprint?: string;
 }
 
+export type FileEndStatus = "completed" | "declined" | "cancelled" | "failed";
 export type FileLifecycle = "offered" | "accepted" | "interrupted" | FileEndStatus;
+
+export const isFileTerminal = (status: string) => ["completed", "declined", "cancelled", "failed"].includes(status);
+export const MAX_CONCURRENT_TRANSFERS = 3;
 
 export interface FileRecord extends FileOffer {
   roomId: string;
@@ -25,16 +29,15 @@ export type FileSignal
 
 export type FileClientEvent
   = | ({ type: "file-offer" } & FileOffer)
-    | { type: "file-accept" | "file-decline" | "file-cancel" | "file-finish"; id: string }
-    | { type: "file-fail"; id: string; message: string }
-    | { type: "file-signal"; id: string; signal: FileSignal };
-
-export type FileEndStatus = "completed" | "declined" | "cancelled" | "failed";
+    | { type: "file-accept" | "file-resume"; id: string; offset: number }
+    | { type: "file-decline" | "file-cancel"; id: string }
+    | { type: "file-pause" | "file-finish"; id: string; attempt?: string }
+    | { type: "file-fail"; id: string; attempt?: string; message: string }
+    | { type: "file-signal"; id: string; attempt: string; signal: FileSignal };
 
 export type FileServerEvent
   = | { type: "file-record"; record: FileRecord }
-    | ({ type: "file-offered"; senderId: string } & FileOffer)
-    | { type: "file-accepted"; id: string }
-    | { type: "file-ended"; id: string; status: FileEndStatus; message?: string }
-    | { type: "file-error"; id: string; message: string }
-    | { type: "file-signal"; id: string; signal: FileSignal };
+    | { type: "file-start"; id: string; offset: number; attempt: string }
+    | { type: "file-waiting" | "file-wake"; id: string }
+    | { type: "file-error"; id: string; message: string; attempt?: string }
+    | { type: "file-signal"; id: string; attempt: string; signal: FileSignal };

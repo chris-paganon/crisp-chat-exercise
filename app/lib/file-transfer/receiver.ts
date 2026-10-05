@@ -8,8 +8,14 @@ export function createFileReceiver(
   progress: (bytes: number) => void,
   complete: (file: File) => void,
   fail: (error: unknown) => void,
+  startOffset = 0,
+  finishing: () => void = () => {},
 ) {
-  let written = 0;
+  if (!Number.isSafeInteger(startOffset) || startOffset < 0 || startOffset > size) {
+    throw new Error("Invalid receiving offset.");
+  }
+
+  let written = startOffset;
   let pendingBytes = 0;
   let pendingMessages = 0;
   let ended = false;
@@ -49,10 +55,14 @@ export function createFileReceiver(
           throw new Error("File data received after completion.");
         }
         else if (control.type === "batch" && control.offset === written) {
+          await sink.checkpoint?.();
+          if (stopped) return;
+
           channel.send(JSON.stringify({ type: "ack", offset: written }));
         }
         else if (control.type === "end" && written === size) {
           ended = true;
+          finishing();
           const file = await sink.finish();
           if (stopped) return;
 
