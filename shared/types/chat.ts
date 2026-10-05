@@ -1,3 +1,5 @@
+import type { FileClientEvent, FileServerEvent } from "./file-transfer";
+
 export interface ChatRoom {
   id: string;
   title: string;
@@ -16,11 +18,13 @@ export interface ChatMessage {
 }
 
 export type ChatClientEvent
-  = | { type: "message"; id: string; body: string }
+  = | FileClientEvent
+    | { type: "message"; id: string; body: string }
     | { type: "ping" };
 
 export type ChatServerEvent
-  = | { type: "ready"; userId: string; messages: ChatMessage[] }
+  = | FileServerEvent
+    | { type: "ready"; userId: string; messages: ChatMessage[] }
     | { type: "message"; message: ChatMessage }
     | { type: "error"; message: string; id?: string; fatal?: boolean }
     | { type: "pong" };

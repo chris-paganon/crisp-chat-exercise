@@ -2,17 +2,10 @@ import { z } from "zod";
 import { loadChatHistory, saveChatMessage } from "#server/utils/chat-messages";
 import { auth } from "#server/utils/auth";
 import { requireRoomMemberById } from "#server/utils/chat";
-import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
+import { chatClientEventSchema } from "#server/utils/chat-events";
+import { coordinateFileTransfer, registerTransferPeer, unregisterTransferPeer } from "#server/utils/chat-transfers";
+import type { FileClientEvent } from "~~/shared/types/file-transfer";
 import type { ChatServerEvent } from "~~/shared/types/chat";
-
-const clientEventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("ping") }),
-  z.object({
-    type: z.literal("message"),
-    id: z.string().uuid(),
-    body: z.string().trim().min(1).max(MAX_CHAT_MESSAGE_LENGTH),
-  }),
-]);
 
 export default defineWebSocketHandler({
   async upgrade(request) {
@@ -37,12 +30,15 @@ export default defineWebSocketHandler({
   async open(peer) {
     const roomId = peer.context.roomId as string;
 
+    registerTransferPeer(peer);
     // Subscribe before reading history so concurrent messages cannot fall in a gap.
     peer.subscribe(`room:${roomId}`);
 
     try {
       const history = await loadChatHistory(roomId);
 
+      if (peer.context.transferClosed) return;
+      peer.context.transferReady = true;
       peer.send({
         type: "ready",
         userId: peer.context.userId as string,
@@ -57,6 +53,7 @@ export default defineWebSocketHandler({
 
   async message(peer, incoming) {
     let id: string | undefined;
+    let isFileEvent = false;
 
     try {
       // Allow escaped JSON and multi-byte text, while bounding incoming payloads.
@@ -65,7 +62,8 @@ export default defineWebSocketHandler({
       }
 
       const raw = incoming.json();
-      const parsed = clientEventSchema.safeParse(raw);
+      isFileEvent = Boolean(raw && typeof raw === "object" && "type" in raw && typeof raw.type === "string" && raw.type.startsWith("file-"));
+      const parsed = chatClientEventSchema.safeParse(raw);
 
       if (raw && typeof raw === "object" && "id" in raw && typeof raw.id === "string") {
         id = z.string().uuid().safeParse(raw.id).success ? raw.id : undefined;
@@ -73,9 +71,9 @@ export default defineWebSocketHandler({
 
       if (!parsed.success) {
         peer.send({
-          type: "error",
-          id,
-          message: "Enter a message of 1–10,000 characters.",
+          type: isFileEvent ? "file-error" : "error",
+          id: id ?? "",
+          message: isFileEvent ? "Invalid file-transfer event." : "Enter a message of 1–10,000 characters.",
         } satisfies ChatServerEvent);
         return;
       }
@@ -102,6 +100,11 @@ export default defineWebSocketHandler({
         return;
       }
 
+      if (parsed.data.type !== "message") {
+        if (!peer.context.transferClosed) coordinateFileTransfer(peer, parsed.data as FileClientEvent);
+        return;
+      }
+
       const record = await saveChatMessage(roomId, userId, parsed.data.id, parsed.data.body);
 
       const event = { type: "message", message: record } satisfies ChatServerEvent;
@@ -113,10 +116,14 @@ export default defineWebSocketHandler({
     catch (error) {
       console.error("Failed to process chat message.", error);
       peer.send({
-        type: "error",
-        id,
-        message: "Message couldn't be sent. Please try again.",
+        type: isFileEvent ? "file-error" : "error",
+        id: id ?? "",
+        message: isFileEvent ? "File coordination failed. Please try again." : "Message couldn't be sent. Please try again.",
       } satisfies ChatServerEvent);
     }
+  },
+  close(peer) {
+    peer.context.transferClosed = true;
+    unregisterTransferPeer(peer);
   },
 });
