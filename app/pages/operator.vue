@@ -3,7 +3,7 @@ import { ArrowLeft, Check, ExternalLink, Inbox, LoaderCircle, LogOut, MessageSqu
 import { authClient } from "@/lib/auth-client";
 import { chatError } from "@/lib/chat-error";
 import type { ChatRoom } from "~~/shared/types/chat";
-import ChatComposer from "@/components/chat/ChatComposer.vue";
+import ChatConversation from "@/components/chat/ChatConversation.vue";
 
 definePageMeta({ layout: false, middleware: "operator" });
 useSeoMeta({ title: "Inbox | Crisp" });
@@ -22,7 +22,7 @@ watch(selectedId, () => {
   error.value = "";
 });
 
-// Only room membership is refreshed; there is no message transport in this phase.
+// Refresh the inbox for newly opened or claimed visitor rooms.
 const { pause, resume } = useIntervalFn(() => {
   void refresh();
 }, 5000, { immediate: false });
@@ -201,23 +201,11 @@ function dateLabel(value: string) {
         >
           {{ error }}
         </div>
-        <div class="conversation-content">
-          <div class="conversation-date">
-            {{ dateLabel(selected.createdAt) }} · Conversation created
-          </div>
-          <div class="conversation-setup">
-            <div class="conversation-setup-icon">
-              <Check :size="32" />
-            </div>
-            <span class="chat-eyebrow">YOU’RE BOTH HERE</span>
-            <h2>You joined the conversation.</h2>
-            <p>Your private conversation is ready. Messaging and file sharing will be available soon.</p>
-            <div class="conversation-joined-badge">
-              <Check :size="16" /> Operator + visitor · 2 of 2 participants
-            </div>
-          </div>
-        </div>
-        <ChatComposer />
+        <ChatConversation
+          :key="selected.id"
+          :room-id="selected.id"
+          peer-name="Visitor"
+        />
       </template>
       <div
         v-else

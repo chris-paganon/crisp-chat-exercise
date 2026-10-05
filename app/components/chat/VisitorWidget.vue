@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Check, LoaderCircle, MessageSquare, RotateCcw, X } from "lucide-vue-next";
+import { LoaderCircle, MessageSquare, RotateCcw, X } from "lucide-vue-next";
 import type { ChatRoom } from "~~/shared/types/chat";
 import { authClient } from "@/lib/auth-client";
 import { chatError } from "@/lib/chat-error";
-import ChatComposer from "@/components/chat/ChatComposer.vue";
+import ChatConversation from "@/components/chat/ChatConversation.vue";
 
 const open = ref(false);
 const joining = ref(false);
@@ -40,14 +40,14 @@ watch(open, (isOpen) => {
   if (isOpen) void openConversation();
 });
 
-// Refresh membership only; messaging is not implemented yet.
+// Keep the operator's name current after they claim this room.
 useIntervalFn(async () => {
   if (!open.value || !room.value || joining.value || error.value) return;
   try {
     room.value = await $fetch<ChatRoom>(`/api/rooms/${room.value.id}`);
   }
-  catch (cause) {
-    error.value = chatError(cause, "We couldn't refresh your conversation. Please try again.");
+  catch {
+    // The socket handles network recovery; a failed name refresh must not unmount it.
   }
 }, 5000);
 </script>
@@ -78,7 +78,14 @@ useIntervalFn(async () => {
             <X :size="19" />
           </button>
         </header>
+        <ChatConversation
+          v-if="room && !joining && !error"
+          :key="room.id"
+          :room-id="room.id"
+          :peer-name="room.operatorName ?? 'Support team'"
+        />
         <div
+          v-else
           class="visitor-widget-body"
           aria-live="polite"
         >
@@ -106,20 +113,6 @@ useIntervalFn(async () => {
               <RotateCcw :size="16" /> Try again
             </button>
           </div>
-          <template v-else-if="room">
-            <div class="widget-joined-label">
-              <Check :size="13" /> Your conversation is ready
-            </div>
-            <div class="widget-greeting">
-              Hi there 👋<br>Welcome! You're in the right place.
-            </div>
-            <p class="widget-greeting-caption">
-              {{ room.operatorName ? `${room.operatorName} · Your support operator` : "Waiting for a support operator" }}
-            </p>
-            <div class="widget-room-card">
-              <span class="chat-eyebrow">YOUR CONVERSATION</span><h3>{{ room.title }}</h3><p>Your room is ready. You'll be able to exchange messages here soon.</p>
-            </div>
-          </template>
           <template v-else>
             <div class="widget-greeting">
               Hello there 👋<br>How can we help you today?
@@ -133,7 +126,6 @@ useIntervalFn(async () => {
             </div>
           </template>
         </div>
-        <ChatComposer />
         <footer class="visitor-widget-footer">
           <ChatCrispLogo /> <span>We run on conversations.</span>
         </footer>
