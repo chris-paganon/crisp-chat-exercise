@@ -30,6 +30,7 @@ export function createTransferSession(options: SessionOptions) {
   function fail(error: unknown) {
     if (!stopped) options.fail(asTransferError(error));
   }
+  // Keep a 30sec activity timer running. If it expires, the transfer is aborted.
   function activity() {
     clearTimeout(timer);
     timer = setTimeout(() => fail(new Error("File transfer timed out. Please send it again.")), TRANSFER_TIMEOUT_MS);
@@ -44,51 +45,73 @@ export function createTransferSession(options: SessionOptions) {
     sender: Boolean(options.source),
     signal: options.signal,
     fail: (error) => { if (!delivered) fail(error); },
-    channel(current) {
-      if (channel) {
-        current.close();
-        fail(new Error("Unexpected second file channel."));
-        return;
-      }
-      channel = current;
-      current.binaryType = "arraybuffer";
-      if (options.source) sender = createFileSender(current, options.source, progress, () => {
+    channel: channelHandler,
+  });
+  activity();
+
+  function channelHandler(current: RTCDataChannel) {
+    if (channel) {
+      current.close();
+      fail(new Error("Unexpected second file channel."));
+      return;
+    }
+
+    channel = current;
+    current.binaryType = "arraybuffer";
+
+    if (options.source) {
+      sender = createFileSender(current, options.source, progress, () => {
         delivered = true;
         activity();
         options.delivered();
       });
-      else if (options.sink) receiver = createFileReceiver(current, options.size, options.sink, progress, (file) => {
+    }
+    else if (options.sink) {
+      receiver = createFileReceiver(current, options.size, options.sink, progress, (file) => {
         if (file.size !== options.size) throw new Error("Received file size does not match the offer.");
         delivered = true;
         activity();
         options.complete(file);
       }, fail);
-      current.onmessage = ({ data }) => {
-        try {
-          if (!stopped && !delivered) (sender ?? receiver)?.receiveFileChannelMessage(data);
+    }
+
+    current.onmessage = ({ data }) => {
+      try {
+        if (stopped || delivered) return;
+
+        if (sender) {
+          sender.receiveFileChannelMessage(data);
         }
-        catch (error) {
-          fail(error);
+        else if (receiver) {
+          receiver.receiveFileChannelMessage(data);
         }
-      };
-      let opened = false;
-      current.onopen = () => {
-        if (stopped || opened) return;
-        opened = true;
-        activity();
-        options.connected();
-        void sender?.start().catch(fail);
-      };
-      if (current.readyState === "open") current.onopen(new Event("open"));
-      current.onerror = () => {
-        if (!delivered) fail(new Error("File data channel failed."));
-      };
-      current.onclose = () => {
-        if (!delivered) fail(new Error("File data channel closed before completion."));
-      };
-    },
-  });
-  activity();
+      }
+      catch (error) {
+        fail(error);
+      }
+    };
+
+    let opened = false;
+    current.onopen = () => {
+      if (stopped || opened) return;
+
+      opened = true;
+      activity();
+      options.connected();
+      void sender?.start().catch(fail);
+    };
+
+    if (current.readyState === "open") {
+      current.onopen(new Event("open"));
+    }
+
+    current.onerror = () => {
+      if (!delivered) fail(new Error("File data channel failed."));
+    };
+    current.onclose = () => {
+      if (!delivered) fail(new Error("File data channel closed before completion."));
+    };
+  }
 
   return {
     start: () => { void peer.start().catch(fail); },
