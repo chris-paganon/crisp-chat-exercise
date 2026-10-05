@@ -1,4 +1,5 @@
 import { toast } from "vue-sonner";
+import { ConnectionUnavailableError } from "@/lib/chat-error";
 import type { ChatClientEvent, ChatServerEvent } from "~~/shared/types/chat";
 
 export type ChatConnection = ReturnType<typeof useChatConnection>;
@@ -131,7 +132,7 @@ export function useChatConnection(roomId: string) {
 
   function transmit(event: ChatClientEvent) {
     if (socket?.readyState !== WebSocket.OPEN) {
-      throw new Error("Connection unavailable.");
+      throw new ConnectionUnavailableError();
     }
 
     socket.send(JSON.stringify(event));

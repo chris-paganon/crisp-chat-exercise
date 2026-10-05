@@ -1,6 +1,7 @@
 import type { FileClientEvent, FileServerEvent, FileEndStatus } from "~~/shared/types/file-transfer";
 import type { TransferView } from "./model";
 import type { FileSink } from "./storage";
+import { ConnectionUnavailableError } from "../chat-error";
 import { isTransferActive } from "./model";
 import { asTransferError } from "./peer";
 import { createTransferSession } from "./session";
@@ -34,13 +35,6 @@ export function createTransferManager(options: ManagerOptions) {
     publish();
   }
 
-  function notify(event: FileClientEvent) {
-    try {
-      options.send(event);
-    }
-    catch { /* Local failure/cleanup must still work when the socket is unavailable. */ }
-  }
-
   function finish(item: TransferView, status: FileEndStatus, message?: string) {
     const resource = resources.get(item.id)!;
     clearTimeout(resource.timer);
@@ -60,8 +54,16 @@ export function createTransferManager(options: ManagerOptions) {
     if (!isTransferActive(item)) return;
 
     const message = asTransferError(error).message.slice(0, 500);
-    notify({ type: "file-fail", id: item.id, message });
-    finish(item, "failed", message);
+    try {
+      options.send({ type: "file-fail", id: item.id, message });
+    }
+    catch (error) {
+      // The transfer is ending locally even if the peer cannot be notified.
+      if (!(error instanceof ConnectionUnavailableError)) throw error;
+    }
+    finally {
+      finish(item, "failed", message);
+    }
   }
 
   function start(item: TransferView) {
@@ -145,7 +147,12 @@ export function createTransferManager(options: ManagerOptions) {
       if (event.senderId === options.userId()) {
         if (!item) return;
         if (!isTransferActive(item)) {
-          notify({ type: "file-cancel", id: event.id });
+          try {
+            options.send({ type: "file-cancel", id: event.id });
+          }
+          catch (error) {
+            if (!(error instanceof ConnectionUnavailableError)) throw error;
+          }
           return;
         }
         clearTimeout(resources.get(item.id)?.timer);
@@ -190,8 +197,15 @@ export function createTransferManager(options: ManagerOptions) {
   function stop(id: string, decline = false) {
     const item = transfers.get(id);
     if (!item || !isTransferActive(item)) return;
-    notify({ type: decline ? "file-decline" : "file-cancel", id });
-    finish(item, decline ? "declined" : "cancelled");
+    try {
+      options.send({ type: decline ? "file-decline" : "file-cancel", id });
+    }
+    catch (error) {
+      if (!(error instanceof ConnectionUnavailableError)) throw error;
+    }
+    finally {
+      finish(item, decline ? "declined" : "cancelled");
+    }
   }
 
   function download(id: string) {
@@ -216,18 +230,29 @@ export function createTransferManager(options: ManagerOptions) {
   function disconnect() {
     for (const item of transfers.values()) {
       if (isTransferActive(item)) {
-        notify({ type: "file-cancel", id: item.id });
-        finish(item, "failed", "Chat connection lost. Reconnect and send the file again.");
+        try {
+          options.send({ type: "file-cancel", id: item.id });
+        }
+        catch (error) {
+          if (!(error instanceof ConnectionUnavailableError)) throw error;
+        }
+        finally {
+          finish(item, "failed", "Chat connection lost. Reconnect and send the file again.");
+        }
       }
     }
   }
 
   function dispose() {
-    for (const item of transfers.values()) {
-      if (isTransferActive(item)) stop(item.id);
-      remove(item.id);
+    try {
+      for (const item of transfers.values()) {
+        if (isTransferActive(item)) stop(item.id);
+      }
     }
-    disposed = true;
+    finally {
+      disposed = true;
+      for (const item of transfers.values()) remove(item.id);
+    }
   }
 
   return { offer, accept, receive, stop, download, remove, disconnect, dispose };
