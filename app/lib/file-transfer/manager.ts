@@ -1,6 +1,7 @@
 import type { FileClientEvent, FileServerEvent, FileEndStatus, FileSignal } from "~~/shared/types/file-transfer";
 import type { TransferView } from "./model";
 import type { FileSink } from "./storage";
+import type { TransferSession } from "./session";
 import { ConnectionUnavailableError } from "../chat-error";
 import { isTransferActive } from "./model";
 import { asTransferError } from "./peer";
@@ -10,7 +11,7 @@ import { createFileDownload, openFileSink } from "./storage";
 interface TransferResources {
   source?: File;
   sink?: FileSink;
-  session?: ReturnType<typeof createSendSession>;
+  session?: TransferSession;
   file?: File;
   timer?: ReturnType<typeof setTimeout>;
   downloads: (() => void)[];
@@ -66,13 +67,12 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
-  // Starts a transfer session for sender and receiver.
-  function start(item: TransferView) {
+  function prepareSession(item: TransferView) {
     const resource = resources.get(item.id)!;
     clearTimeout(resource.timer);
     update(item, { status: "connecting" });
 
-    const sessionOptions = {
+    return {
       id: item.id,
       signal: (signal: FileSignal) => options.send({ type: "file-signal", id: item.id, signal }),
       progress(bytes: number) {
@@ -86,34 +86,38 @@ export function createTransferManager(options: ManagerOptions) {
       connected: () => update(item, { status: "transferring" }),
       fail: (error: Error) => fail(item, error),
     };
+  }
 
-    if (item.direction === "outgoing") {
-      if (!resource.source) throw new Error("The source file is missing.");
-      resource.session = createSendSession({
-        ...sessionOptions,
-        source: resource.source,
-        delivered: () => update(item, { status: "finishing" }),
-      });
-    }
-    else {
-      if (!resource.sink) throw new Error("The file storage is missing.");
-      resource.session = createReceiveSession({
-        ...sessionOptions,
-        size: item.size,
-        sink: resource.sink,
-        complete(file) {
-          resource.file = file;
-          update(item, { status: "finishing" });
-          try {
-            options.send({ type: "file-finish", id: item.id });
-          }
-          catch (error) {
-            fail(item, error);
-          }
-        },
-      });
-    }
-    resource.session.start();
+  function startSending(item: TransferView) {
+    const resource = resources.get(item.id)!;
+    if (!resource.source) throw new Error("The source file is missing.");
+
+    const session = createSendSession({
+      ...prepareSession(item),
+      source: resource.source,
+      delivered: () => update(item, { status: "finishing" }),
+    });
+    resource.session = session;
+    session.start();
+  }
+
+  function startReceiving(item: TransferView, sink: FileSink) {
+    const resource = resources.get(item.id)!;
+    resource.session = createReceiveSession({
+      ...prepareSession(item),
+      size: item.size,
+      sink,
+      complete(file) {
+        resource.file = file;
+        update(item, { status: "finishing" });
+        try {
+          options.send({ type: "file-finish", id: item.id });
+        }
+        catch (error) {
+          fail(item, error);
+        }
+      },
+    });
   }
 
   // Sender offers a file to the receiver.
@@ -152,7 +156,7 @@ export function createTransferManager(options: ManagerOptions) {
       }
       resource.sink = sink;
       // Prepare to receive WebRTC signals before accepting the file offer.
-      start(item);
+      startReceiving(item, sink);
       options.send({ type: "file-accept", id });
     }
     catch (error) {
@@ -199,7 +203,7 @@ export function createTransferManager(options: ManagerOptions) {
       case "file-accepted":
         if (item.direction === "outgoing") {
           try {
-            start(item);
+            startSending(item);
           }
           catch (error) {
             fail(item, error);

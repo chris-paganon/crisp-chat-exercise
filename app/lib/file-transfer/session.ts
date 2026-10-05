@@ -13,6 +13,11 @@ interface SessionOptions {
   fail: (error: Error) => void;
 }
 
+export interface TransferSession {
+  receiveSignal: (signal: FileSignal) => void;
+  close: () => void;
+}
+
 interface SendSessionOptions extends SessionOptions {
   source: File;
   delivered: () => void;
@@ -26,13 +31,13 @@ interface ReceiveSessionOptions extends SessionOptions {
 
 interface TransferCallbacks {
   progress: (bytes: number) => void;
-  delivered: () => void;
+  markDelivered: () => void;
   fail: (error: unknown) => void;
 }
 
 interface ChannelTransfer {
   receiveFileChannelMessage: (data: unknown) => void;
-  start?: () => Promise<void>;
+  onOpen?: () => Promise<void>;
   stop: () => void;
 }
 
@@ -42,30 +47,47 @@ interface ConnectionOptions extends SessionOptions {
 }
 
 export function createSendSession(options: SendSessionOptions) {
-  return createSessionConnection({
+  const connection = createSessionConnection({
     ...options,
     sender: true,
     createTransfer(channel, callbacks) {
-      return createFileSender(channel, options.source, callbacks.progress, () => {
-        callbacks.delivered();
+      const sender = createFileSender(channel, options.source, callbacks.progress, () => {
+        callbacks.markDelivered();
         options.delivered();
       });
+      return {
+        receiveFileChannelMessage: sender.receiveFileChannelMessage,
+        onOpen: sender.start,
+        stop: sender.stop,
+      };
     },
   });
+
+  return {
+    start: connection.startNegotiation,
+    receiveSignal: connection.receiveSignal,
+    close: connection.close,
+  };
 }
 
-export function createReceiveSession(options: ReceiveSessionOptions) {
-  return createSessionConnection({
+export function createReceiveSession(options: ReceiveSessionOptions): TransferSession {
+  const connection = createSessionConnection({
     ...options,
     sender: false,
     createTransfer(channel, callbacks) {
       return createFileReceiver(channel, options.size, options.sink, callbacks.progress, (file) => {
         if (file.size !== options.size) throw new Error("Received file size does not match the offer.");
-        callbacks.delivered();
+        callbacks.markDelivered();
         options.complete(file);
       }, callbacks.fail);
     },
   });
+
+  // Receiving begins with the remote offer; no local negotiation needs starting.
+  return {
+    receiveSignal: connection.receiveSignal,
+    close: connection.close,
+  };
 }
 
 /** Shared peer/channel lifecycle; file protocol handling belongs to each session. */
@@ -110,7 +132,7 @@ function createSessionConnection(options: ConnectionOptions) {
 
     transfer = options.createTransfer(current, {
       progress,
-      delivered() {
+      markDelivered() {
         delivered = true;
         activity();
       },
@@ -136,7 +158,7 @@ function createSessionConnection(options: ConnectionOptions) {
       opened = true;
       activity();
       options.connected();
-      void currentTransfer.start?.().catch(fail);
+      void currentTransfer.onOpen?.().catch(fail);
     };
 
     if (current.readyState === "open") {
@@ -152,7 +174,7 @@ function createSessionConnection(options: ConnectionOptions) {
   }
 
   return {
-    start: () => { void peer.start().catch(fail); },
+    startNegotiation: () => { void peer.start().catch(fail); },
     receiveSignal: peer.receiveSignal,
     close() {
       stopped = true;
