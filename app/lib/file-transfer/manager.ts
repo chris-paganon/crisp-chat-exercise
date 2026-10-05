@@ -95,7 +95,7 @@ export function createTransferManager(options: ManagerOptions) {
     const session = createSendSession({
       ...prepareSession(item),
       source: resource.source,
-      delivered: () => update(item, { status: "finishing" }),
+      sent: () => update(item, { status: "finishing" }),
     });
     resource.session = session;
     session.start();

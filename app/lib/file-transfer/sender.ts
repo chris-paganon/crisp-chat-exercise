@@ -1,10 +1,9 @@
 import { BATCH_BYTES, CHUNK_BYTES, readFileControl, TRANSFER_TIMEOUT_MS } from "./protocol";
 
 /** Stop-and-wait batches: an ACK means bytes were written, not merely received. */
-export function createFileSender(channel: RTCDataChannel, file: File, progress: (bytes: number) => void, complete: () => void = () => {}) {
+export function createFileSender(channel: RTCDataChannel, file: File, progress: (bytes: number) => void, sent: () => void = () => {}) {
   let offset = 0;
   let stopped = false;
-  let endSent = false;
   let acknowledge: (() => void) | undefined;
   let rejectWait: ((error: Error) => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -13,11 +12,6 @@ export function createFileSender(channel: RTCDataChannel, file: File, progress: 
     if (stopped) return;
     if (typeof data !== "string") throw new Error("Unexpected file data at sender.");
     const control = readFileControl(data);
-    if (control.type === "received" && endSent) {
-      channel.send(JSON.stringify({ type: "confirmed" }));
-      complete();
-      return;
-    }
     if (control.type !== "ack" || control.offset !== offset || !acknowledge) {
       throw new Error("Invalid file acknowledgement.");
     }
@@ -49,8 +43,8 @@ export function createFileSender(channel: RTCDataChannel, file: File, progress: 
       });
     }
     if (!stopped) {
-      endSent = true;
       channel.send(JSON.stringify({ type: "end" }));
+      sent();
     }
   }
 

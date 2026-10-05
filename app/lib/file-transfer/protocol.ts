@@ -5,12 +5,12 @@ export const TRANSFER_TIMEOUT_MS = 30000;
 
 export type FileControl
   = | { type: "batch" | "ack"; offset: number }
-    | { type: "end" | "received" | "confirmed" };
+    | { type: "end" };
 
 export function readFileControl(data: string): FileControl {
   if (data.length > 256) throw new Error("Invalid transfer control message.");
   const value = JSON.parse(data);
-  if (value?.type === "end" || value?.type === "received" || value?.type === "confirmed") return { type: value.type };
+  if (value?.type === "end") return { type: value.type };
   if ((value?.type === "batch" || value?.type === "ack") && Number.isSafeInteger(value.offset) && value.offset >= 0) {
     return { type: value.type, offset: value.offset };
   }

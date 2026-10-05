@@ -13,7 +13,6 @@ export function createFileReceiver(
   let pendingBytes = 0;
   let pendingMessages = 0;
   let ended = false;
-  let saved: File | undefined;
   let stopped = false;
   let writing = Promise.resolve();
 
@@ -38,12 +37,7 @@ export function createFileReceiver(
       }
       else {
         const control = readFileControl(data as string);
-        if (control.type === "confirmed" && saved) {
-          const file = saved;
-          saved = undefined;
-          complete(file);
-        }
-        else if (ended) {
+        if (ended) {
           throw new Error("File data received after completion.");
         }
         else if (control.type === "batch" && control.offset === written) {
@@ -54,9 +48,7 @@ export function createFileReceiver(
           const file = await sink.finish();
           if (stopped) return;
           if (file.size !== size) throw new Error("Received file size does not match the offer.");
-          saved = file;
-          // Wait for the sender to confirm receipt before closing either peer.
-          channel.send(JSON.stringify({ type: "received" }));
+          complete(file);
         }
         else {
           throw new Error("Incomplete file or invalid transfer control message.");

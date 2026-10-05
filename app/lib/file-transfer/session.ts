@@ -20,7 +20,7 @@ export interface TransferSession {
 
 interface SendSessionOptions extends SessionOptions {
   source: File;
-  delivered: () => void;
+  sent: () => void;
 }
 
 interface ReceiveSessionOptions extends SessionOptions {
@@ -53,7 +53,7 @@ export function createSendSession(options: SendSessionOptions) {
     createTransfer(channel, callbacks) {
       const sender = createFileSender(channel, options.source, callbacks.progress, () => {
         callbacks.markDelivered();
-        options.delivered();
+        options.sent();
       });
       return {
         receiveFileChannelMessage: sender.receiveFileChannelMessage,
@@ -115,7 +115,12 @@ function createSessionConnection(options: ConnectionOptions) {
     id: options.id,
     sender: options.sender,
     signal: options.signal,
-    fail: (error) => { if (!delivered) fail(error); },
+    fail,
+    connectionLost(state) {
+      // After end is sent, the receiver can close before file-ended arrives.
+      // The activity timer still bounds our wait for the server result.
+      if (!delivered || state === "failed") fail(new Error("Peer connection lost. Send the file again once connected."));
+    },
     channel: channelHandler,
   });
   activity();
@@ -166,7 +171,7 @@ function createSessionConnection(options: ConnectionOptions) {
     }
 
     current.onerror = () => {
-      if (!delivered) fail(new Error("File data channel failed."));
+      fail(new Error("File data channel failed."));
     };
     current.onclose = () => {
       if (!delivered) fail(new Error("File data channel closed before completion."));
