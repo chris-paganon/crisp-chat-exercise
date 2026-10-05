@@ -1,7 +1,5 @@
-import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "#server/db";
-import { message } from "#server/db/schema";
+import { loadChatHistory, saveChatMessage } from "#server/utils/chat-messages";
 import { auth } from "#server/utils/auth";
 import { requireRoomMemberById } from "#server/utils/chat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
@@ -15,14 +13,6 @@ const clientEventSchema = z.discriminatedUnion("type", [
     body: z.string().trim().min(1).max(MAX_CHAT_MESSAGE_LENGTH),
   }),
 ]);
-
-const messageFields = {
-  id: message.id,
-  roomId: message.roomId,
-  senderId: message.senderId,
-  body: message.body,
-  createdAt: message.createdAt,
-};
 
 export default defineWebSocketHandler({
   async upgrade(request) {
@@ -51,11 +41,7 @@ export default defineWebSocketHandler({
     peer.subscribe(`room:${roomId}`);
 
     try {
-      const db = getDb();
-      const history = await db.select(messageFields)
-        .from(message)
-        .where(eq(message.roomId, roomId))
-        .orderBy(asc(message.createdAt), asc(message.id));
+      const history = await loadChatHistory(roomId);
 
       peer.send({
         type: "ready",
@@ -116,29 +102,7 @@ export default defineWebSocketHandler({
         return;
       }
 
-      const db = getDb();
-      const [inserted] = await db.insert(message)
-        .values({
-          id: parsed.data.id,
-          roomId,
-          senderId: userId,
-          body: parsed.data.body,
-        })
-        .onConflictDoNothing({ target: message.id })
-        .returning(messageFields);
-
-      // A retry returns the original persisted message, even if the acknowledgement was lost.
-      const record = inserted ?? (await db.select(messageFields)
-        .from(message)
-        .where(and(
-          eq(message.roomId, roomId),
-          eq(message.senderId, userId),
-          eq(message.id, parsed.data.id),
-        )))[0];
-
-      if (!record) {
-        throw new Error("Message was not saved.");
-      }
+      const record = await saveChatMessage(roomId, userId, parsed.data.id, parsed.data.body);
 
       const event = { type: "message", message: record } satisfies ChatServerEvent;
       peer.send(event);
