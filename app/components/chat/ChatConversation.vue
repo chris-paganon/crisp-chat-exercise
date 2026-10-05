@@ -13,6 +13,24 @@ const { transfers, busy: fileBusy } = files;
 
 const draft = useState<string>(`chat-draft:${props.roomId}`, () => "");
 const messageList = ref<HTMLElement>();
+let initialHistoryLoaded = false;
+
+function scrollToBottom() {
+  const list = messageList.value;
+  if (list) {
+    list.scrollTop = list.scrollHeight;
+  }
+}
+
+onMounted(scrollToBottom);
+
+const unsubscribeHistory = chat.onEvent((event) => {
+  if (event.type !== "ready" || initialHistoryLoaded) return;
+
+  initialHistoryLoaded = true;
+  void nextTick(scrollToBottom);
+});
+onBeforeUnmount(unsubscribeHistory);
 
 const sortedItems = computed(() => [
   ...messages.value.map(item => ({
@@ -42,7 +60,9 @@ watch([messages, transfers], async () => {
   const list = messageList.value;
   const nearBottom = !list || list.scrollHeight - list.scrollTop - list.clientHeight < 80;
   await nextTick();
-  if (nearBottom && messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight;
+  if (nearBottom) {
+    scrollToBottom();
+  }
 }, { deep: true });
 
 async function sendMessage(body: string) {
@@ -50,9 +70,7 @@ async function sendMessage(body: string) {
   draft.value = "";
 
   await nextTick();
-  if (messageList.value) {
-    messageList.value.scrollTop = messageList.value.scrollHeight;
-  }
+  scrollToBottom();
 }
 </script>
 
