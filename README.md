@@ -3,6 +3,7 @@
 ## Limitations
 
 1. To keep it simpler while remaining in-scope: Multiple operators for a single chat isn't supported. When an operator opens a chat room, it claims the room and it isn't available to other operators anymore. This would not be ok for production, but given that the operator UI is already beyond the requirements, I thought this was a good enough place to avoid further scope creep.
+2. Any signed-in user is considered an operator. In production this would require proper user roles management.
 
 ## Run locally
 
@@ -34,12 +35,8 @@ Requirements: Node.js 24+, pnpm 11+, and Docker with Docker Compose.
 
 The default database settings in `.env.example` work with Docker Compose. If you change the database credentials or `POSTGRES_DOCKER_PORT`, update `NUXT_DATABASE_URL` to match.
 
-## Useful commands
+## How to try it out?
 
-```bash
-pnpm typecheck       # Check TypeScript types
-pnpm lint            # Check code style
-pnpm build           # Build for production
-```
-
-To stop the local database, run `docker compose stop db`.
+1. Sign up to create an operator account. Go to `/operator` to see the dashboard.
+2. Send a message from the homepage's chat widget as a logged out user. This will create a room for the operator to join.
+3. Join the room from the operator side and start chatting.
