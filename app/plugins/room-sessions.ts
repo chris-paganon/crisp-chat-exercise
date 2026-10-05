@@ -1,7 +1,19 @@
 import { createRoomSessions } from "@/lib/chat/room-sessions";
+import { toast } from "vue-sonner";
 
 export default defineNuxtPlugin((nuxtApp) => {
-  const roomSessions = createRoomSessions();
+  const roomSessions = createRoomSessions({
+    notify(transfer) {
+      if (transfer.status === "completed") {
+        toast.success(`${transfer.name} ${transfer.direction === "incoming" ? "received" : "sent"}.`, {
+          description: transfer.direction === "incoming" ? "Open the conversation to download your file." : undefined,
+        });
+      }
+      else {
+        toast.error(`${transfer.name}: transfer failed.`, { description: transfer.message });
+      }
+    },
+  });
 
   function dispose() {
     if (import.meta.client) {
