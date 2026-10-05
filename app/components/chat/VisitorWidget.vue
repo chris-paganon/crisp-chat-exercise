@@ -53,30 +53,41 @@ useIntervalFn(async () => {
 </script>
 
 <template>
-  <div class="visitor-chat">
-    <Transition name="widget">
+  <div class="fixed right-4 bottom-4 z-50 sm:right-6 sm:bottom-6">
+    <Transition
+      enter-active-class="origin-bottom-right transition-[opacity,transform] duration-200 motion-reduce:transition-none"
+      leave-active-class="origin-bottom-right transition-[opacity,transform] duration-200 motion-reduce:transition-none"
+      enter-from-class="translate-y-2 scale-95 opacity-0"
+      leave-to-class="translate-y-2 scale-95 opacity-0"
+    >
       <section
         v-if="open"
         id="visitor-conversation"
-        class="visitor-widget"
+        class="mb-3 flex h-[min(36.875rem,calc(100dvh-7.25rem))] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border bg-background text-foreground shadow-xl sm:mb-4 sm:w-95"
         aria-label="Support conversation"
       >
-        <header class="visitor-widget-header">
-          <div class="visitor-team-avatar">
+        <header class="mx-4 flex shrink-0 items-center gap-3 border-b pt-5 pb-4">
+          <div class="grid size-10 shrink-0 place-items-center rounded-full bg-primary bg-linear-to-b from-primary-foreground/20 to-transparent">
             <ChatCrispLogo compact />
           </div>
-          <div class="visitor-heading">
-            <h2>{{ room?.operatorName ? `Chat with ${room.operatorName}` : "Questions? Chat with us." }}</h2>
-            <p>{{ room ? "Your personal conversation" : "A little help goes a long way" }}</p>
+          <div class="min-w-0">
+            <h2 class="truncate text-sm font-medium">
+              {{ room?.operatorName ? `Chat with ${room.operatorName}` : "Questions? Chat with us." }}
+            </h2>
+            <p class="mt-1 text-xs text-muted-foreground">
+              {{ room ? "Your personal conversation" : "A little help goes a long way" }}
+            </p>
           </div>
-          <button
-            class="widget-close"
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            class="ml-auto size-7 text-muted-foreground"
             type="button"
             aria-label="Close chat"
             @click="open = false"
           >
-            <X :size="19" />
-          </button>
+            <X class="size-5" />
+          </UiButton>
         </header>
         <ChatConversation
           v-if="room && !joining && !error"
@@ -86,59 +97,80 @@ useIntervalFn(async () => {
         />
         <div
           v-else
-          class="visitor-widget-body"
+          class="min-h-0 flex-1 overflow-y-auto px-4 py-5"
           aria-live="polite"
         >
-          <div
+          <UiEmpty
             v-if="joining"
-            class="widget-empty-state"
+            class="min-h-55 gap-3 px-3 py-5 md:p-5"
           >
-            <LoaderCircle
-              class="chat-spinner"
-              :size="30"
-            /><h3>Opening your conversation</h3><p>Getting everything ready for you…</p>
-          </div>
-          <div
+            <LoaderCircle class="size-7.5 animate-spin text-primary motion-reduce:animate-none" />
+            <UiEmptyHeader>
+              <h3 class="text-sm font-medium">
+                Opening your conversation
+              </h3><UiEmptyDescription class="text-xs">
+                Getting everything ready for you…
+              </UiEmptyDescription>
+            </UiEmptyHeader>
+          </UiEmpty>
+          <UiEmpty
             v-else-if="error"
-            class="widget-empty-state"
+            class="min-h-55 gap-4 px-3 py-5 md:p-5"
           >
-            <div class="widget-state-icon">
-              <MessageSquare :size="25" />
-            </div><h3>We couldn't connect you</h3><p>{{ error }}</p>
-            <button
+            <div class="grid size-14 place-items-center rounded-lg border bg-accent text-primary">
+              <MessageSquare class="size-6" />
+            </div>
+            <UiEmptyHeader>
+              <h3 class="text-sm font-medium">
+                We couldn't connect you
+              </h3><UiEmptyDescription class="max-w-68 text-xs">
+                {{ error }}
+              </UiEmptyDescription>
+            </UiEmptyHeader>
+            <UiButton
               type="button"
-              class="chat-button chat-button-secondary"
+              variant="secondary"
+              size="sm"
               @click="openConversation"
             >
-              <RotateCcw :size="16" /> Try again
-            </button>
-          </div>
+              <RotateCcw class="size-4" /> Try again
+            </UiButton>
+          </UiEmpty>
           <template v-else>
-            <div class="widget-greeting">
+            <div class="w-fit max-w-[95%] rounded-lg rounded-tl-sm bg-muted px-3.5 py-2.5 text-sm/relaxed">
               Hello there 👋<br>How can we help you today?
-            </div><p class="widget-greeting-caption">
+            </div>
+            <p class="mx-1 mt-2 text-xs text-muted-foreground">
               The Crisp team
             </p>
-            <div class="widget-empty-state widget-welcome">
-              <div class="widget-state-icon">
-                <MessageSquare :size="27" />
-              </div><h3>Good conversations start here.</h3><p>Opening this chat starts your private conversation with our support team.</p>
-            </div>
+            <UiEmpty class="min-h-55 gap-4 px-3 pt-8 pb-5 md:px-3 md:pt-8 md:pb-5">
+              <div class="grid size-14 place-items-center rounded-lg border bg-accent text-primary">
+                <MessageSquare class="size-7" />
+              </div>
+              <UiEmptyHeader>
+                <h3 class="text-sm font-medium">
+                  Good conversations start here.
+                </h3><UiEmptyDescription class="max-w-68 text-xs">
+                  Opening this chat starts your private conversation with our support team.
+                </UiEmptyDescription>
+              </UiEmptyHeader>
+            </UiEmpty>
           </template>
         </div>
-        <footer class="visitor-widget-footer">
-          <ChatCrispLogo /> <span>We run on conversations.</span>
+        <footer class="flex shrink-0 items-center justify-center gap-2.5 px-2.5 pt-2 pb-3">
+          <ChatCrispLogo class="gap-1 text-sm [&_svg]:size-3.5" /><span class="text-[0.625rem] text-muted-foreground">We run on conversations.</span>
         </footer>
       </section>
     </Transition>
     <div
       v-if="!open"
-      class="widget-launcher-hint"
+      class="absolute right-17 bottom-2.5 flex w-max items-center gap-2.5 rounded-md border bg-popover px-4 py-3 text-xs text-popover-foreground shadow-sm sm:right-19"
     >
       We're here to help <span>👋</span>
     </div>
-    <button
-      class="widget-launcher"
+    <UiButton
+      class="ml-auto size-14 rounded-full shadow-lg transition-transform hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none sm:size-15"
+      size="icon-lg"
       type="button"
       :aria-label="open ? 'Close chat' : 'Open support chat'"
       :aria-expanded="open"
@@ -147,12 +179,12 @@ useIntervalFn(async () => {
     >
       <X
         v-if="open"
-        :size="27"
+        class="size-7"
       /><MessageSquare
         v-else
-        :size="29"
+        class="size-7"
         fill="currentColor"
       />
-    </button>
+    </UiButton>
   </div>
 </template>
