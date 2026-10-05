@@ -3,8 +3,8 @@ import type { FileSignal } from "~~/shared/types/file-transfer";
 interface RTCPeerOptions {
   id: string;
   sender: boolean;
-  signal: (signal: FileSignal) => void;
-  channel: (channel: RTCDataChannel) => void;
+  sendSignal: (signal: FileSignal) => void;
+  onRtcDataChannel: (channel: RTCDataChannel) => void;
   fail: (error: Error) => void;
   connectionLost: (state: RTCPeerConnectionState) => void;
 }
@@ -18,7 +18,7 @@ export function createRTCPeer(options: RTCPeerOptions) {
   RTCPeer.onicecandidate = ({ candidate }) => {
     if (stopped) return;
     try {
-      options.signal({ candidate: candidate
+      options.sendSignal({ candidate: candidate
         ? {
             candidate: candidate.candidate,
             sdpMid: candidate.sdpMid,
@@ -40,19 +40,19 @@ export function createRTCPeer(options: RTCPeerOptions) {
       channel.close();
       return;
     }
-    options.channel(channel);
+    options.onRtcDataChannel(channel);
   };
 
   async function start() {
     if (!options.sender) return;
 
-    options.channel(RTCPeer.createDataChannel(`file:${options.id}`, { ordered: true }));
+    options.onRtcDataChannel(RTCPeer.createDataChannel(`file:${options.id}`, { ordered: true }));
     const offer = await RTCPeer.createOffer();
     if (stopped) return;
 
     await RTCPeer.setLocalDescription(offer);
     if (!stopped) {
-      options.signal({ description: { type: "offer", sdp: RTCPeer.localDescription!.sdp } });
+      options.sendSignal({ description: { type: "offer", sdp: RTCPeer.localDescription!.sdp } });
     }
   }
 
@@ -77,7 +77,7 @@ export function createRTCPeer(options: RTCPeerOptions) {
       for (const candidate of candidates.splice(0)) await RTCPeer.addIceCandidate(candidate ?? undefined);
       if (!options.sender) {
         await RTCPeer.setLocalDescription(await RTCPeer.createAnswer());
-        if (!stopped) options.signal({ description: { type: "answer", sdp: RTCPeer.localDescription!.sdp } });
+        if (!stopped) options.sendSignal({ description: { type: "answer", sdp: RTCPeer.localDescription!.sdp } });
       }
     }).catch((error) => {
       if (!stopped) options.fail(asTransferError(error));

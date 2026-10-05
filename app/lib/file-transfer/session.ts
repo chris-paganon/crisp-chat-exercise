@@ -7,7 +7,7 @@ import { TRANSFER_TIMEOUT_MS } from "./protocol";
 
 interface SessionOptions {
   id: string;
-  signal: (signal: FileSignal) => void;
+  sendSignal: (signal: FileSignal) => void;
   progress: (bytes: number) => void;
   connected: () => void;
   fail: (error: Error) => void;
@@ -63,18 +63,18 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
   const RTCPeer = createRTCPeer({
     id: options.id,
     sender: "source" in options,
-    signal: options.signal,
+    sendSignal: options.sendSignal,
     fail,
     connectionLost(state) {
       // After end is sent, the receiver can close before file-ended arrives.
       // The activity timer still bounds our wait for the server result.
       if (!awaitingCompletion || state === "failed") fail(new Error("Peer connection lost. Send the file again once connected."));
     },
-    channel: channelHandler,
+    onRtcDataChannel: setupRtcDataChannel,
   });
   activity();
 
-  function channelHandler(current: RTCDataChannel) {
+  function setupRtcDataChannel(current: RTCDataChannel) {
     if (channel) {
       current.close();
       fail(new Error("Unexpected second file channel."));

@@ -72,9 +72,13 @@ export function createTransferManager(options: ManagerOptions) {
     clearTimeout(resource.timer);
     update(item, { status: "connecting" });
 
+    function sendRtcSignal(signal: FileSignal) {
+      options.send({ type: "file-signal", id: item.id, signal });
+    }
+
     return {
       id: item.id,
-      signal: (signal: FileSignal) => options.send({ type: "file-signal", id: item.id, signal }),
+      sendSignal: sendRtcSignal,
       progress(bytes: number) {
         item.bytes = bytes;
         const now = performance.now();
