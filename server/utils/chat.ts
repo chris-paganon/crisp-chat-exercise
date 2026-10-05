@@ -22,6 +22,7 @@ export async function getRoomSummary(roomId: string) {
   }).from(room)
     .leftJoin(user, eq(room.operatorId, user.id))
     .where(eq(room.id, roomId));
+
   if (!record) {
     throw createError({ statusCode: 404, statusMessage: "Room not found." });
   }
@@ -35,7 +36,9 @@ export async function requireRoomMember(event: H3Event) {
 }
 
 export async function requireRoomMemberById(id: string, userId: string) {
-  const [record] = await getDb().select().from(room).where(eq(room.id, id));
+  const db = getDb();
+  const [record] = await db.select().from(room).where(eq(room.id, id));
+
   if (!record || (record.operatorId !== userId && record.visitorId !== userId)) {
     throw createError({ statusCode: 404, statusMessage: "Room not found." });
   }

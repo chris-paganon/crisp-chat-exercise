@@ -17,57 +17,48 @@ export function useChatMessages(roomId: string) {
   let disposed = false;
   let stopped = false;
   let attempts = 0;
+
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let connectionTimer: ReturnType<typeof setTimeout> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let pongTimer: ReturnType<typeof setTimeout> | undefined;
   const acknowledgements = new Map<string, ReturnType<typeof setTimeout>>();
 
-  function fail(clientId: string, reason: string) {
-    clearTimeout(acknowledgements.get(clientId));
-    acknowledgements.delete(clientId);
+  onMounted(connect);
+  onBeforeUnmount(() => {
+    disposed = true;
+    toast.dismiss(errorToastId);
+    clearTimeout(reconnectTimer);
+    clearConnectionTimers();
 
-    const item = messages.value.find(item => item.senderId === userId.value && item.clientId === clientId);
-    if (item && item.status !== "sent") {
-      item.status = "failed";
-      item.error = reason;
+    for (const clientId of acknowledgements.keys()) {
+      fail(clientId, "Send interrupted. Please try again.");
     }
-  }
 
-  function merge(record: ChatMessage) {
-    if (record.roomId !== roomId) {
+    socket?.close(1000, "Conversation closed.");
+  });
+
+  function connect() {
+    if (disposed || stopped) {
       return;
     }
 
-    if (record.senderId === userId.value) {
-      clearTimeout(acknowledgements.get(record.clientId));
-      acknowledgements.delete(record.clientId);
-    }
+    clearTimeout(reconnectTimer);
+    connection.value = attempts ? "reconnecting" : "connecting";
 
-    const index = messages.value.findIndex(item => item.id === record.id
-      || (item.clientId === record.clientId && item.senderId === record.senderId));
-    const item: DisplayMessage = { ...record, status: "sent" };
+    const url = new URL("/api/chat", window.location.href);
+    url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    url.searchParams.set("room", roomId);
 
-    if (index === -1) {
-      messages.value.push(item);
-    }
-    else {
-      messages.value[index] = item;
-    }
-  }
+    const current = new WebSocket(url);
+    socket = current;
 
-  function transmit(event: ChatClientEvent) {
-    if (socket?.readyState !== WebSocket.OPEN) {
-      throw new Error("Connection unavailable.");
-    }
+    // Includes the history handshake, not just the HTTP upgrade.
+    connectionTimer = setTimeout(() => current.close(), 10000);
 
-    socket.send(JSON.stringify(event));
-  }
-
-  function clearConnectionTimers() {
-    clearTimeout(connectionTimer);
-    clearInterval(heartbeat);
-    clearTimeout(pongTimer);
+    current.onmessage = incoming => handleMessage(current, incoming);
+    current.onerror = () => current.close();
+    current.onclose = event => handleClose(current, event);
   }
 
   function handleMessage(current: WebSocket, incoming: MessageEvent) {
@@ -119,7 +110,6 @@ export function useChatMessages(roomId: string) {
           if (!event.clientId || event.fatal) {
             toast.error(event.message, {
               id: errorToastId,
-              duration: event.fatal ? Infinity : undefined,
             });
           }
 
@@ -167,54 +157,47 @@ export function useChatMessages(roomId: string) {
     reconnectTimer = setTimeout(connect, delay);
   }
 
-  function connect() {
-    if (disposed || stopped) {
+  // Methods
+  function merge(record: ChatMessage) {
+    if (record.roomId !== roomId) {
       return;
     }
 
-    clearTimeout(reconnectTimer);
-    connection.value = attempts ? "reconnecting" : "connecting";
-
-    const url = new URL("/api/chat", window.location.href);
-    url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("room", roomId);
-
-    const current = new WebSocket(url);
-    socket = current;
-
-    // Includes the history handshake, not just the HTTP upgrade.
-    connectionTimer = setTimeout(() => current.close(), 10000);
-
-    current.onmessage = incoming => handleMessage(current, incoming);
-    current.onerror = () => current.close();
-    current.onclose = event => handleClose(current, event);
-  }
-
-  function sendItem(item: DisplayMessage) {
-    if (connection.value !== "connected") {
-      return;
+    if (record.senderId === userId.value) {
+      clearTimeout(acknowledgements.get(record.clientId));
+      acknowledgements.delete(record.clientId);
     }
 
-    item.status = "sending";
-    item.error = undefined;
+    const index = messages.value.findIndex(item => item.id === record.id
+      || (item.clientId === record.clientId && item.senderId === record.senderId));
+    const item: DisplayMessage = { ...record, status: "sent" };
 
-    clearTimeout(acknowledgements.get(item.clientId));
-    acknowledgements.set(item.clientId, setTimeout(() => {
-      fail(item.clientId, "No confirmation received. Try again.");
-    }, 10000));
-
-    try {
-      transmit({
-        type: "message",
-        clientId: item.clientId,
-        body: item.body,
-      });
+    if (index === -1) {
+      messages.value.push(item);
     }
-    catch {
-      fail(item.clientId, "Connection lost. Please try again.");
+    else {
+      messages.value[index] = item;
     }
   }
 
+  function fail(clientId: string, reason: string) {
+    clearTimeout(acknowledgements.get(clientId));
+    acknowledgements.delete(clientId);
+
+    const item = messages.value.find(item => item.senderId === userId.value && item.clientId === clientId);
+    if (item && item.status !== "sent") {
+      item.status = "failed";
+      item.error = reason;
+    }
+  }
+
+  function clearConnectionTimers() {
+    clearTimeout(connectionTimer);
+    clearInterval(heartbeat);
+    clearTimeout(pongTimer);
+  }
+
+  // Public functions
   function send(body: string) {
     const text = body.trim();
 
@@ -244,19 +227,39 @@ export function useChatMessages(roomId: string) {
     }
   }
 
-  onMounted(connect);
-  onBeforeUnmount(() => {
-    disposed = true;
-    toast.dismiss(errorToastId);
-    clearTimeout(reconnectTimer);
-    clearConnectionTimers();
-
-    for (const clientId of acknowledgements.keys()) {
-      fail(clientId, "Send interrupted. Please try again.");
+  function sendItem(item: DisplayMessage) {
+    if (connection.value !== "connected") {
+      return;
     }
 
-    socket?.close(1000, "Conversation closed.");
-  });
+    item.status = "sending";
+    item.error = undefined;
+
+    clearTimeout(acknowledgements.get(item.clientId));
+    acknowledgements.set(item.clientId, setTimeout(() => {
+      fail(item.clientId, "No confirmation received. Try again.");
+    }, 10000));
+
+    try {
+      transmit({
+        type: "message",
+        clientId: item.clientId,
+        body: item.body,
+      });
+    }
+    catch {
+      fail(item.clientId, "Connection lost. Please try again.");
+    }
+  }
+
+  // Websocket helpers
+  function transmit(event: ChatClientEvent) {
+    if (socket?.readyState !== WebSocket.OPEN) {
+      throw new Error("Connection unavailable.");
+    }
+
+    socket.send(JSON.stringify(event));
+  }
 
   return { messages, userId, connection, send, retry };
 }
