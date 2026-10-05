@@ -8,11 +8,11 @@ interface DisplayMessage extends ChatMessage {
 }
 
 export function useChatMessages(roomId: string) {
-  // Keep unsent messages when changing rooms or closing/reopening the widget.
   const messages = useState<DisplayMessage[]>(`chat-messages:${roomId}`, () => []);
   const userId = ref("");
   const connection = ref<"connecting" | "connected" | "reconnecting" | "closed">("connecting");
   const errorToastId = `chat-error:${roomId}`;
+
   let socket: WebSocket | undefined;
   let disposed = false;
   let stopped = false;
@@ -70,35 +70,18 @@ export function useChatMessages(roomId: string) {
     clearTimeout(pongTimer);
   }
 
-  function connect() {
-    if (disposed || stopped) {
+  function handleMessage(current: WebSocket, incoming: MessageEvent) {
+    if (socket !== current || disposed) {
       return;
     }
 
-    clearTimeout(reconnectTimer);
-    connection.value = attempts ? "reconnecting" : "connecting";
+    try {
+      // JSON serializes dates as strings; restore them at the WebSocket boundary.
+      const event = JSON.parse(incoming.data, (key, value) =>
+        key === "createdAt" && typeof value === "string" ? new Date(value) : value) as ChatServerEvent;
 
-    const url = new URL("/api/chat", window.location.href);
-    url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("room", roomId);
-
-    const current = new WebSocket(url);
-    socket = current;
-
-    // Includes the history handshake, not just the HTTP upgrade.
-    connectionTimer = setTimeout(() => current.close(), 10000);
-
-    current.onmessage = (incoming) => {
-      if (socket !== current || disposed) {
-        return;
-      }
-
-      try {
-        // JSON serializes dates as strings; restore them at the WebSocket boundary.
-        const event = JSON.parse(incoming.data, (key, value) =>
-          key === "createdAt" && typeof value === "string" ? new Date(value) : value) as ChatServerEvent;
-
-        if (event.type === "ready") {
+      switch (event.type) {
+        case "ready": {
           userId.value = event.userId;
 
           for (const record of event.messages) {
@@ -120,14 +103,15 @@ export function useChatMessages(roomId: string) {
               current.close();
             }
           }, 15000);
+          break;
         }
-        else if (event.type === "message") {
+        case "message":
           merge(event.message);
-        }
-        else if (event.type === "pong") {
+          break;
+        case "pong":
           clearTimeout(pongTimer);
-        }
-        else if (event.type === "error") {
+          break;
+        case "error": {
           if (event.clientId) {
             fail(event.clientId, event.message);
           }
@@ -143,45 +127,67 @@ export function useChatMessages(roomId: string) {
             stopped = true;
             current.close();
           }
+          break;
         }
       }
-      catch {
-        toast.error("Couldn't read the conversation. Reconnecting…", { id: errorToastId });
-        current.close();
-      }
-    };
+    }
+    catch {
+      toast.error("Couldn't read the conversation. Reconnecting…", { id: errorToastId });
+      current.close();
+    }
+  }
 
+  function handleClose(current: WebSocket, event: CloseEvent) {
+    if (socket !== current || disposed) {
+      return;
+    }
+
+    socket = undefined;
+    clearConnectionTimers();
+
+    for (const clientId of acknowledgements.keys()) {
+      fail(clientId, "Connection lost. Try again once connected.");
+    }
+
+    if (!stopped && event.code === 1008) {
+      toast.error("Your session ended. Reload to sign in again.", {
+        id: errorToastId,
+        duration: Infinity,
+      });
+      stopped = true;
+    }
+
+    if (stopped) {
+      connection.value = "closed";
+      return;
+    }
+
+    connection.value = "reconnecting";
+    const delay = Math.min(1000 * 2 ** attempts++, 15000);
+    reconnectTimer = setTimeout(connect, delay);
+  }
+
+  function connect() {
+    if (disposed || stopped) {
+      return;
+    }
+
+    clearTimeout(reconnectTimer);
+    connection.value = attempts ? "reconnecting" : "connecting";
+
+    const url = new URL("/api/chat", window.location.href);
+    url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    url.searchParams.set("room", roomId);
+
+    const current = new WebSocket(url);
+    socket = current;
+
+    // Includes the history handshake, not just the HTTP upgrade.
+    connectionTimer = setTimeout(() => current.close(), 10000);
+
+    current.onmessage = incoming => handleMessage(current, incoming);
     current.onerror = () => current.close();
-
-    current.onclose = (event) => {
-      if (socket !== current || disposed) {
-        return;
-      }
-
-      socket = undefined;
-      clearConnectionTimers();
-
-      for (const clientId of acknowledgements.keys()) {
-        fail(clientId, "Connection lost. Try again once connected.");
-      }
-
-      if (!stopped && event.code === 1008) {
-        toast.error("Your session ended. Reload to sign in again.", {
-          id: errorToastId,
-          duration: Infinity,
-        });
-        stopped = true;
-      }
-
-      if (stopped) {
-        connection.value = "closed";
-        return;
-      }
-
-      connection.value = "reconnecting";
-      const delay = Math.min(1000 * 2 ** attempts++, 15000);
-      reconnectTimer = setTimeout(connect, delay);
-    };
+    current.onclose = event => handleClose(current, event);
   }
 
   function sendItem(item: DisplayMessage) {
