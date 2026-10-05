@@ -43,8 +43,12 @@ export async function getRoomSummary(roomId: string) {
 export async function requireRoomMember(event: H3Event) {
   const currentUser = await requireUser(event);
   const id = getRouterParam(event, "id") ?? "";
+  return requireRoomMemberById(id, currentUser.id);
+}
+
+export async function requireRoomMemberById(id: string, userId: string) {
   const [record] = await getDb().select().from(room).where(eq(room.id, id));
-  if (!record || (record.operatorId !== currentUser.id && record.visitorId !== currentUser.id)) {
+  if (!record || (record.operatorId !== userId && record.visitorId !== userId)) {
     throw createError({ statusCode: 404, statusMessage: "Room not found." });
   }
   return record;

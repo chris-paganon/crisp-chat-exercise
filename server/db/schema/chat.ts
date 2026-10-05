@@ -15,7 +15,7 @@ export const room = pgTable("chat_room", {
   check("chat_room_distinct_participants", sql`${table.operatorId} <> ${table.visitorId}`),
 ]);
 
-// Text history is ready for the next phase; no message write endpoint exists yet.
+// The client ID makes retrying an unacknowledged message idempotent.
 export const message = pgTable("chat_message", {
   id: text("id").primaryKey(),
   roomId: text("room_id").notNull().references(() => room.id, { onDelete: "cascade" }),

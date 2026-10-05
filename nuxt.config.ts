@@ -46,6 +46,9 @@ export default defineNuxtConfig({
     },
   },
   compatibilityDate: "2025-07-15",
+  nitro: {
+    experimental: { websocket: true },
+  },
 
   vite: {
     plugins: [tailwindcss()],
