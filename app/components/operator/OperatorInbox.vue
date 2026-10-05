@@ -6,7 +6,7 @@ import { dateLabel } from "@/lib/date";
 import type { ChatRoom } from "~~/shared/types/chat";
 
 const emit = defineEmits<{ open: []; claimError: [] }>();
-const { data: rooms, error: loadError, status, refresh } = await useOperatorRooms();
+const { data: rooms, error: loadError, status, refresh } = useOperatorRooms();
 
 const selectedId = useRouteQuery<string>("room", "");
 const busy = ref(false);
@@ -82,7 +82,7 @@ async function selectRoom(id: string) {
       </UiButton>
     </UiEmpty>
     <UiEmpty
-      v-else-if="status !== 'success'"
+      v-else-if="status === 'pending' && !rooms.length"
       class="gap-3 rounded-none px-4 py-8 md:p-4"
       role="status"
     >
