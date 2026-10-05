@@ -30,16 +30,17 @@ export function unregisterTransferPeer(peer: TransferPeer) {
   const peers = rooms.get(roomId);
   peers?.delete(peer);
   if (!peers?.size) rooms.delete(roomId);
-  const transfer = transfers.get(roomId);
-  if (transfer && (transfer.sender.id === peer.id || transfer.receiver.id === peer.id)) {
-    end(roomId, "failed", "The other participant left the conversation.", peer.id);
+  for (const [id, transfer] of transfers) {
+    if (transfer.sender.id === peer.id || transfer.receiver.id === peer.id) {
+      end(id, "failed", "The other participant left the conversation.", peer.id);
+    }
   }
 }
 
-function end(roomId: string, status: FileEndStatus, message?: string, closedPeerId?: string) {
-  const transfer = transfers.get(roomId);
+function end(id: string, status: FileEndStatus, message?: string, closedPeerId?: string) {
+  const transfer = transfers.get(id);
   if (!transfer) return;
-  transfers.delete(roomId);
+  transfers.delete(id);
   clearTimeout(transfer.timer);
   const event = { type: "file-ended", id: transfer.offer.id, status, message } satisfies FileServerEvent;
   for (const peer of [transfer.sender, transfer.receiver]) {
@@ -50,22 +51,25 @@ function end(roomId: string, status: FileEndStatus, message?: string, closedPeer
 export function coordinateFileTransfer(peer: TransferPeer, event: FileClientEvent) {
   const roomId = peer.context.roomId as string;
   const fail = (message: string) => peer.send({ type: "file-error", id: event.id, message } satisfies FileServerEvent);
-  const current = transfers.get(roomId);
+  const current = transfers.get(event.id);
 
   if (event.type === "file-offer") {
-    if (current) return fail("Only one file transfer can be active in this room.");
+    if (current) return fail("This file offer already exists.");
+
+    const active = [...transfers.values()].filter(item => item.sender.context.roomId === roomId);
+    if (active.length >= 3) return fail("Three files can transfer at once. Wait for one to finish.");
     const receiver = [...(rooms.get(roomId) ?? [])].find(other =>
       other.context.userId !== peer.context.userId && other.context.transferReady);
     if (!receiver) return fail("The other participant must have this conversation open.");
     const offer = { ...event, type: "file-offered", senderId: peer.context.userId as string } satisfies FileServerEvent;
-    const timer = setTimeout(() => end(roomId, "failed", "The file offer expired."), 120000);
-    transfers.set(roomId, { offer, sender: peer, receiver, accepted: false, timer });
+    const timer = setTimeout(() => end(event.id, "failed", "The file offer expired."), 120000);
+    transfers.set(event.id, { offer, sender: peer, receiver, accepted: false, timer });
     receiver.send(offer);
     peer.send(offer);
     return;
   }
 
-  if (!current || current.offer.id !== event.id) return fail("This transfer is no longer active.");
+  if (!current || current.sender.context.roomId !== roomId) return fail("This transfer is no longer active.");
   const isSender = current.sender.id === peer.id;
   const isReceiver = current.receiver.id === peer.id;
   if (!isSender && !isReceiver) return fail("This transfer belongs to another tab.");
@@ -80,17 +84,17 @@ export function coordinateFileTransfer(peer: TransferPeer, event: FileClientEven
       break;
     case "file-decline":
       if (!isReceiver || current.accepted) return fail("This offer cannot be declined.");
-      end(roomId, "declined");
+      end(event.id, "declined");
       break;
     case "file-cancel":
-      end(roomId, "cancelled");
+      end(event.id, "cancelled");
       break;
     case "file-fail":
-      end(roomId, "failed", event.message);
+      end(event.id, "failed", event.message);
       break;
     case "file-finish":
       if (!isReceiver || !current.accepted) return fail("This transfer cannot be completed.");
-      end(roomId, "completed");
+      end(event.id, "completed");
       break;
     case "file-signal": {
       if (!current.accepted) return fail("Accept the offer before connecting.");

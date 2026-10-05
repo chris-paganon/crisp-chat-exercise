@@ -126,7 +126,7 @@ export function createTransferManager(options: ManagerOptions) {
 
   // Sender offers a file to the receiver.
   function offer(file: File) {
-    if (disposed || [...transfers.values()].some(isTransferActive)) return;
+    if (disposed) return;
 
     const item: TransferView = {
       id: crypto.randomUUID(), name: file.name, size: file.size, mime: file.type,
@@ -189,11 +189,6 @@ export function createTransferManager(options: ManagerOptions) {
         update(item, { status: "offered" });
       }
       else if (!item) {
-        // TODO: should probably be removed once we support multiple file transfers
-        // A simultaneous outgoing offer lost the server's room race condition lock.
-        for (const pending of transfers.values()) {
-          if (isTransferActive(pending)) finish(pending, "failed", "The other participant offered a file first.");
-        }
         item = { ...event, direction: "incoming", status: "offered", bytes: 0, createdAt: Date.now() };
         transfers.set(item.id, item);
         resources.set(item.id, { downloads: [] });

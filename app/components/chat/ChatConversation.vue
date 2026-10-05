@@ -8,7 +8,7 @@ const props = defineProps<{ roomId: string; peerName: string }>();
 const { chat, messages: roomMessages, files } = useRoomSession(props.roomId);
 const { userId, connection } = chat;
 const { messages, send, retry } = roomMessages;
-const { transfers, busy: fileBusy } = files;
+const { transfers } = files;
 
 const draft = useState<string>(`chat-draft:${props.roomId}`, () => "");
 const messageList = ref<HTMLElement>();
@@ -154,7 +154,6 @@ async function sendMessage(body: string) {
     <ChatComposer
       v-model="draft"
       :disabled="connection !== 'connected'"
-      :file-busy="fileBusy"
       @send="sendMessage"
       @attach="files.offer"
     />
