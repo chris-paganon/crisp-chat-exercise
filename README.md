@@ -1,5 +1,9 @@
 # Crisp chat
 
+## Limitations
+
+1. To keep it simpler while remaining in-scope: Multiple operators for a single chat isn't supported. When an operator opens a chat room, it claims the room and it isn't available to other operators anymore. This would not be ok for production, but given that the operator UI is already beyond the requirements, I thought this was a good enough place to avoid further scope creep.
+
 ## Run locally
 
 Requirements: Node.js 24+, pnpm 11+, and Docker with Docker Compose.
