@@ -1,16 +1,16 @@
-import type { FileClientEvent, FileServerEvent, FileEndStatus } from "~~/shared/types/file-transfer";
+import type { FileClientEvent, FileServerEvent, FileEndStatus, FileSignal } from "~~/shared/types/file-transfer";
 import type { TransferView } from "./model";
 import type { FileSink } from "./storage";
 import { ConnectionUnavailableError } from "../chat-error";
 import { isTransferActive } from "./model";
 import { asTransferError } from "./peer";
-import { createTransferSession } from "./session";
+import { createReceiveSession, createSendSession } from "./session";
 import { createFileDownload, openFileSink } from "./storage";
 
 interface TransferResources {
   source?: File;
   sink?: FileSink;
-  session?: ReturnType<typeof createTransferSession>;
+  session?: ReturnType<typeof createSendSession>;
   file?: File;
   timer?: ReturnType<typeof setTimeout>;
   downloads: (() => void)[];
@@ -72,13 +72,10 @@ export function createTransferManager(options: ManagerOptions) {
     clearTimeout(resource.timer);
     update(item, { status: "connecting" });
 
-    resource.session = createTransferSession({
+    const sessionOptions = {
       id: item.id,
-      size: item.size,
-      source: resource.source,
-      sink: resource.sink,
-      signal: signal => options.send({ type: "file-signal", id: item.id, signal }),
-      progress(bytes) {
+      signal: (signal: FileSignal) => options.send({ type: "file-signal", id: item.id, signal }),
+      progress(bytes: number) {
         item.bytes = bytes;
         const now = performance.now();
         if (bytes === item.size || now - (resource.lastProgressAt ?? 0) >= 100) {
@@ -87,19 +84,35 @@ export function createTransferManager(options: ManagerOptions) {
         }
       },
       connected: () => update(item, { status: "transferring" }),
-      delivered: () => update(item, { status: "finishing" }),
-      complete(file) {
-        resource.file = file;
-        update(item, { status: "finishing" });
-        try {
-          options.send({ type: "file-finish", id: item.id });
-        }
-        catch (error) {
-          fail(item, error);
-        }
-      },
-      fail: error => fail(item, error),
-    });
+      fail: (error: Error) => fail(item, error),
+    };
+
+    if (item.direction === "outgoing") {
+      if (!resource.source) throw new Error("The source file is missing.");
+      resource.session = createSendSession({
+        ...sessionOptions,
+        source: resource.source,
+        delivered: () => update(item, { status: "finishing" }),
+      });
+    }
+    else {
+      if (!resource.sink) throw new Error("The file storage is missing.");
+      resource.session = createReceiveSession({
+        ...sessionOptions,
+        size: item.size,
+        sink: resource.sink,
+        complete(file) {
+          resource.file = file;
+          update(item, { status: "finishing" });
+          try {
+            options.send({ type: "file-finish", id: item.id });
+          }
+          catch (error) {
+            fail(item, error);
+          }
+        },
+      });
+    }
     resource.session.start();
   }
 

@@ -7,24 +7,73 @@ import { TRANSFER_TIMEOUT_MS } from "./protocol";
 
 interface SessionOptions {
   id: string;
-  size: number;
-  source?: File;
-  sink?: FileSink;
   signal: (signal: FileSignal) => void;
   progress: (bytes: number) => void;
   connected: () => void;
-  complete: (file: File) => void;
-  delivered: () => void;
   fail: (error: Error) => void;
 }
 
-/** One peer/channel per transfer; independent of Vue and room socket lifecycle. */
-export function createTransferSession(options: SessionOptions) {
+interface SendSessionOptions extends SessionOptions {
+  source: File;
+  delivered: () => void;
+}
+
+interface ReceiveSessionOptions extends SessionOptions {
+  size: number;
+  sink: FileSink;
+  complete: (file: File) => void;
+}
+
+interface TransferCallbacks {
+  progress: (bytes: number) => void;
+  delivered: () => void;
+  fail: (error: unknown) => void;
+}
+
+interface ChannelTransfer {
+  receiveFileChannelMessage: (data: unknown) => void;
+  start?: () => Promise<void>;
+  stop: () => void;
+}
+
+interface ConnectionOptions extends SessionOptions {
+  sender: boolean;
+  createTransfer: (channel: RTCDataChannel, callbacks: TransferCallbacks) => ChannelTransfer;
+}
+
+export function createSendSession(options: SendSessionOptions) {
+  return createSessionConnection({
+    ...options,
+    sender: true,
+    createTransfer(channel, callbacks) {
+      return createFileSender(channel, options.source, callbacks.progress, () => {
+        callbacks.delivered();
+        options.delivered();
+      });
+    },
+  });
+}
+
+export function createReceiveSession(options: ReceiveSessionOptions) {
+  return createSessionConnection({
+    ...options,
+    sender: false,
+    createTransfer(channel, callbacks) {
+      return createFileReceiver(channel, options.size, options.sink, callbacks.progress, (file) => {
+        if (file.size !== options.size) throw new Error("Received file size does not match the offer.");
+        callbacks.delivered();
+        options.complete(file);
+      }, callbacks.fail);
+    },
+  });
+}
+
+/** Shared peer/channel lifecycle; file protocol handling belongs to each session. */
+function createSessionConnection(options: ConnectionOptions) {
   let stopped = false;
   let delivered = false;
   let channel: RTCDataChannel | undefined;
-  let sender: ReturnType<typeof createFileSender> | undefined;
-  let receiver: ReturnType<typeof createFileReceiver> | undefined;
+  let transfer: ChannelTransfer | undefined;
   let timer: ReturnType<typeof setTimeout>;
 
   function fail(error: unknown) {
@@ -42,7 +91,7 @@ export function createTransferSession(options: SessionOptions) {
 
   const peer = createFilePeer({
     id: options.id,
-    sender: Boolean(options.source),
+    sender: options.sender,
     signal: options.signal,
     fail: (error) => { if (!delivered) fail(error); },
     channel: channelHandler,
@@ -59,32 +108,21 @@ export function createTransferSession(options: SessionOptions) {
     channel = current;
     current.binaryType = "arraybuffer";
 
-    if (options.source) {
-      sender = createFileSender(current, options.source, progress, () => {
+    transfer = options.createTransfer(current, {
+      progress,
+      delivered() {
         delivered = true;
         activity();
-        options.delivered();
-      });
-    }
-    else if (options.sink) {
-      receiver = createFileReceiver(current, options.size, options.sink, progress, (file) => {
-        if (file.size !== options.size) throw new Error("Received file size does not match the offer.");
-        delivered = true;
-        activity();
-        options.complete(file);
-      }, fail);
-    }
+      },
+      fail,
+    });
+    const currentTransfer = transfer;
 
     current.onmessage = ({ data }) => {
       try {
         if (stopped || delivered) return;
 
-        if (sender) {
-          sender.receiveFileChannelMessage(data);
-        }
-        else if (receiver) {
-          receiver.receiveFileChannelMessage(data);
-        }
+        currentTransfer.receiveFileChannelMessage(data);
       }
       catch (error) {
         fail(error);
@@ -98,7 +136,7 @@ export function createTransferSession(options: SessionOptions) {
       opened = true;
       activity();
       options.connected();
-      void sender?.start().catch(fail);
+      void currentTransfer.start?.().catch(fail);
     };
 
     if (current.readyState === "open") {
@@ -119,8 +157,7 @@ export function createTransferSession(options: SessionOptions) {
     close() {
       stopped = true;
       clearTimeout(timer);
-      sender?.stop();
-      receiver?.stop();
+      transfer?.stop();
       channel?.close();
       peer.close();
     },
