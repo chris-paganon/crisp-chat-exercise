@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { toTypedSchema } from "@vee-validate/zod";
 import { useForm } from "vee-validate";
+import { toast } from "vue-sonner";
 import { computed, watch } from "vue";
 import * as z from "zod";
 import { authClient } from "@/lib/auth-client";
@@ -12,8 +13,11 @@ const redirectPath = computed(() => getAuthRedirect(route.query.redirect));
 const { data: authProviders } = await useFetch("/api/auth-providers");
 
 const isSignUp = computed(() => mode.value === "sign-up");
-const errorMessage = ref(typeof route.query.error === "string" ? "Google sign-in failed. Please try again." : "");
-const successMessage = ref("");
+onMounted(() => {
+  if (typeof route.query.error === "string") {
+    toast.error("Google sign-in failed. Please try again.");
+  }
+});
 const verificationEmail = ref("");
 const isVerificationPending = computed(() => Boolean(verificationEmail.value));
 const isResendingVerification = ref(false);
@@ -45,8 +49,6 @@ const form = useForm({
 });
 
 watch(mode, () => {
-  errorMessage.value = "";
-  successMessage.value = "";
   form.setFieldError("name", undefined);
 });
 
@@ -55,7 +57,6 @@ const alternateActionLabel = computed(() => isSignUp.value ? "Sign in instead" :
 
 async function signInWithGoogle() {
   isGooglePending.value = true;
-  errorMessage.value = "";
 
   try {
     const errorCallbackURL = `/auth?${new URLSearchParams({
@@ -69,11 +70,11 @@ async function signInWithGoogle() {
     });
 
     if (response.error) {
-      errorMessage.value = response.error.message || "Google sign-in failed. Please try again.";
+      toast.error(response.error.message || "Google sign-in failed. Please try again.");
     }
   }
   catch {
-    errorMessage.value = "Google sign-in failed. Please try again.";
+    toast.error("Google sign-in failed. Please try again.");
   }
   finally {
     isGooglePending.value = false;
@@ -81,9 +82,6 @@ async function signInWithGoogle() {
 }
 
 const onSubmit = form.handleSubmit(async (values) => {
-  errorMessage.value = "";
-  successMessage.value = "";
-
   const response = isSignUp.value
     ? await authClient.signUp.email({
         name: values.name ?? "",
@@ -104,7 +102,7 @@ const onSubmit = form.handleSubmit(async (values) => {
       return;
     }
 
-    errorMessage.value = response.error.message || "Authentication failed. Please try again.";
+    toast.error(response.error.message || "Authentication failed. Please try again.");
     return;
   }
 
@@ -118,8 +116,6 @@ const onSubmit = form.handleSubmit(async (values) => {
 
 async function resendVerificationEmail() {
   isResendingVerification.value = true;
-  errorMessage.value = "";
-  successMessage.value = "";
 
   const response = await authClient.sendVerificationEmail({
     email: verificationEmail.value,
@@ -129,17 +125,15 @@ async function resendVerificationEmail() {
   isResendingVerification.value = false;
 
   if (response.error) {
-    errorMessage.value = response.error.message || "Unable to resend the verification email. Please try again.";
+    toast.error(response.error.message || "Unable to resend the verification email. Please try again.");
     return;
   }
 
-  successMessage.value = "A new verification link has been sent.";
+  toast.success("A new verification link has been sent.");
 }
 
 function returnToSignIn() {
   verificationEmail.value = "";
-  errorMessage.value = "";
-  successMessage.value = "";
   mode.value = "sign-in";
 }
 </script>
@@ -177,19 +171,6 @@ function returnToSignIn() {
         v-if="isVerificationPending"
         class="space-y-5"
       >
-        <UiAlert
-          v-if="errorMessage"
-          variant="destructive"
-        >
-          <UiAlertTitle>Unable to resend</UiAlertTitle>
-          <UiAlertDescription>{{ errorMessage }}</UiAlertDescription>
-        </UiAlert>
-
-        <UiAlert v-if="successMessage">
-          <UiAlertTitle>Email sent</UiAlertTitle>
-          <UiAlertDescription>{{ successMessage }}</UiAlertDescription>
-        </UiAlert>
-
         <p class="text-sm leading-6 text-muted-foreground">
           Open the link in the email to verify your address and finish signing in.
         </p>
@@ -210,14 +191,6 @@ function returnToSignIn() {
         class="space-y-5"
         @submit="onSubmit"
       >
-        <UiAlert
-          v-if="errorMessage"
-          variant="destructive"
-        >
-          <UiAlertTitle>Unable to continue</UiAlertTitle>
-          <UiAlertDescription>{{ errorMessage }}</UiAlertDescription>
-        </UiAlert>
-
         <template v-if="authProviders?.google">
           <UiButton
             class="w-full"

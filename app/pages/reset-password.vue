@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { toTypedSchema } from "@vee-validate/zod";
 import { useForm } from "vee-validate";
+import { toast } from "vue-sonner";
 import { computed } from "vue";
 import * as z from "zod";
 import { authClient } from "@/lib/auth-client";
@@ -19,7 +20,6 @@ const token = computed(() => typeof route.query.token === "string" ? route.query
 const tokenRejected = ref(false);
 const isInvalidToken = computed(() => !token.value || route.query.error === "INVALID_TOKEN" || tokenRejected.value);
 const isComplete = ref(false);
-const errorMessage = ref("");
 
 const formSchema = toTypedSchema(z.object({
   password: z.string().min(8, "Password must be at least 8 characters."),
@@ -38,8 +38,6 @@ const form = useForm({
 });
 
 const onSubmit = form.handleSubmit(async (values) => {
-  errorMessage.value = "";
-
   const response = await authClient.resetPassword({
     newPassword: values.password,
     token: token.value,
@@ -51,7 +49,7 @@ const onSubmit = form.handleSubmit(async (values) => {
       return;
     }
 
-    errorMessage.value = response.error.message || "Unable to reset your password. Please try again.";
+    toast.error(response.error.message || "Unable to reset your password. Please try again.");
     return;
   }
 
@@ -125,14 +123,6 @@ const onSubmit = form.handleSubmit(async (values) => {
             class="space-y-5"
             @submit="onSubmit"
           >
-            <UiAlert
-              v-if="errorMessage"
-              variant="destructive"
-            >
-              <UiAlertTitle>Unable to reset password</UiAlertTitle>
-              <UiAlertDescription>{{ errorMessage }}</UiAlertDescription>
-            </UiAlert>
-
             <UiFormField
               v-slot="{ componentField }"
               name="password"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { toTypedSchema } from "@vee-validate/zod";
 import { useForm } from "vee-validate";
+import { toast } from "vue-sonner";
 import * as z from "zod";
 import { authClient } from "@/lib/auth-client";
 
@@ -15,7 +16,6 @@ useSeoMeta({
 
 const isComplete = ref(false);
 const submittedEmail = ref("");
-const errorMessage = ref("");
 
 const formSchema = toTypedSchema(z.object({
   email: z.string().trim().email("Enter a valid email address."),
@@ -29,15 +29,13 @@ const form = useForm({
 });
 
 const onSubmit = form.handleSubmit(async (values) => {
-  errorMessage.value = "";
-
   const response = await authClient.requestPasswordReset({
     email: values.email,
     redirectTo: "/reset-password",
   });
 
   if (response.error) {
-    errorMessage.value = response.error.message || "Unable to send a reset link. Please try again.";
+    toast.error(response.error.message || "Unable to send a reset link. Please try again.");
     return;
   }
 
@@ -90,14 +88,6 @@ const onSubmit = form.handleSubmit(async (values) => {
             class="space-y-5"
             @submit="onSubmit"
           >
-            <UiAlert
-              v-if="errorMessage"
-              variant="destructive"
-            >
-              <UiAlertTitle>Unable to send reset link</UiAlertTitle>
-              <UiAlertDescription>{{ errorMessage }}</UiAlertDescription>
-            </UiAlert>
-
             <UiFormField
               v-slot="{ componentField }"
               name="email"

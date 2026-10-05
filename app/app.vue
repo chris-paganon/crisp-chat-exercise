@@ -4,11 +4,12 @@ import "vue-sonner/style.css";
 </script>
 
 <template>
+  <Toaster
+    position="top-right"
+    :duration="8000"
+    close-button
+  />
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
-  <Toaster
-    position="top-right"
-    close-button
-  />
 </template>
