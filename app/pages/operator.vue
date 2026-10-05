@@ -70,137 +70,197 @@ function dateLabel(value: string) {
 
 <template>
   <div
-    class="operator-app"
-    :class="{ 'operator-show-conversation': mobileConversation }"
+    class="grid h-dvh grid-cols-[3.5rem_minmax(0,1fr)] overflow-hidden bg-background text-sm text-foreground sm:grid-cols-[4.5rem_16rem_minmax(0,1fr)] lg:grid-cols-[14rem_18.75rem_minmax(0,1fr)]"
+    :class="[mobileConversation ? 'max-sm:grid-cols-1' : '', selected ? 'xl:grid-cols-[14rem_18.75rem_minmax(0,1fr)_16.25rem]' : '']"
   >
-    <aside class="operator-sidebar">
+    <aside
+      class="min-h-0 flex-col items-center border-r bg-sidebar px-1.5 pt-6 sm:px-2.5 lg:items-stretch lg:px-4"
+      :class="mobileConversation ? 'hidden sm:flex' : 'flex'"
+    >
       <NuxtLink
         to="/"
         aria-label="Crisp home"
-      ><ChatCrispLogo /></NuxtLink>
-      <div class="operator-workspace">
-        <span class="workspace-icon"><MessageSquare :size="20" /></span><div><strong>My workspace</strong><small>Personal support inbox</small></div>
+        class="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring lg:ml-2"
+      >
+        <ChatCrispLogo class="[&>span]:hidden lg:[&>span]:inline" />
+      </NuxtLink>
+      <div class="mx-2 mt-8 mb-6 hidden items-center gap-2.5 lg:flex">
+        <span class="grid size-9 shrink-0 place-items-center rounded-md border bg-accent text-primary"><MessageSquare class="size-5" /></span>
+        <div><strong class="text-xs font-medium">My workspace</strong><small class="mt-1 block text-xs text-muted-foreground">Personal support inbox</small></div>
       </div>
-      <div class="operator-navigation">
-        <span><Inbox :size="18" /> Inbox <b>{{ rooms.length }}</b></span>
+      <div class="mt-8 flex items-center justify-center gap-2.5 rounded-sm bg-sidebar-primary px-2 py-3 text-sidebar-primary-foreground shadow-xs lg:mt-0 lg:justify-start lg:px-3">
+        <Inbox class="size-4.5 shrink-0" /><span class="hidden lg:inline">Inbox</span><span class="ml-auto hidden text-xs lg:inline">{{ rooms.length }}</span>
       </div>
-      <span class="sidebar-section-label">YOUR INBOX</span>
-      <div class="operator-sidebar-item">
-        <MessageSquare :size="16" /> All conversations <span>{{ rooms.length }}</span>
+      <span class="mx-3 mt-7 mb-3 hidden text-xs font-medium tracking-wider text-muted-foreground lg:block">YOUR INBOX</span>
+      <div class="hidden items-center gap-2 rounded-sm bg-sidebar-accent px-3 py-2.5 text-xs text-sidebar-accent-foreground lg:flex">
+        <MessageSquare class="size-4" /> All conversations <span class="ml-auto text-muted-foreground">{{ rooms.length }}</span>
       </div>
-      <div class="operator-sidebar-stat">
-        <Users :size="16" /> Unclaimed <span>{{ unclaimedCount }}</span>
+      <div class="hidden items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground lg:flex">
+        <Users class="size-4" /> Unclaimed <span class="ml-auto">{{ unclaimedCount }}</span>
       </div>
-      <div class="operator-sidebar-bottom">
-        <NuxtLink to="/"><ExternalLink :size="16" /> View visitor website</NuxtLink><div class="operator-user">
-          <span>{{ session?.user.name.charAt(0).toUpperCase() }}</span><div><strong>{{ session?.user.name }}</strong><small>Operator</small></div><button
+      <div class="mt-auto w-full">
+        <NuxtLink
+          to="/"
+          class="mx-2 my-4 hidden items-center gap-2 rounded-sm text-xs text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring lg:flex"
+        >
+          <ExternalLink class="size-4" /> View visitor website
+        </NuxtLink>
+        <div class="flex min-w-0 flex-col items-center gap-2.5 border-t py-4 lg:flex-row">
+          <span class="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-xs text-primary">{{ session?.user.name.charAt(0).toUpperCase() }}</span>
+          <div class="hidden min-w-0 lg:block">
+            <strong class="block truncate text-xs font-medium">{{ session?.user.name }}</strong><small class="mt-0.5 block text-xs text-muted-foreground">Operator</small>
+          </div>
+          <UiButton
             type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="size-7 text-muted-foreground lg:ml-auto"
             aria-label="Sign out"
             @click="signOut"
           >
-            <LogOut :size="17" />
-          </button>
+            <LogOut class="size-4" />
+          </UiButton>
         </div>
       </div>
     </aside>
 
     <section
-      class="operator-room-list"
+      class="min-h-0 min-w-0 flex-col overflow-hidden border-r"
+      :class="mobileConversation ? 'hidden sm:flex' : 'flex'"
       aria-label="Conversations"
     >
-      <header>
-        <div><h1>Inbox</h1><span>{{ unclaimedCount }} unclaimed · {{ rooms.length - unclaimedCount }} yours</span></div>
+      <header class="shrink-0 px-5 pt-6 pb-5">
+        <h1 class="text-2xl font-medium tracking-tight">
+          Inbox
+        </h1>
+        <span class="mt-1 block text-xs text-muted-foreground">{{ unclaimedCount }} unclaimed · {{ rooms.length - unclaimedCount }} yours</span>
       </header>
-      <label class="room-search"><Search :size="16" /><input
-        v-model="search"
-        type="search"
-        placeholder="Search conversations"
-        aria-label="Search conversations"
-      ></label>
-      <div class="room-list-heading">
-        <span>All conversations</span><button
+      <div class="relative mx-4 mb-5 shrink-0">
+        <Search class="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+        <UiInput
+          v-model="search"
+          type="search"
+          class="h-9 rounded-sm bg-muted pl-9 text-xs md:text-xs"
+          placeholder="Search conversations"
+          aria-label="Search conversations"
+        />
+      </div>
+      <div class="flex shrink-0 items-center justify-between border-b px-5 pb-3 text-xs font-medium text-muted-foreground">
+        <span>All conversations</span>
+        <UiButton
           type="button"
+          variant="ghost"
+          size="icon-sm"
+          class="size-6 text-muted-foreground"
           aria-label="Refresh conversations"
           :disabled="status === 'pending'"
           @click="refresh()"
         >
-          <RefreshCw :size="14" />
-        </button>
+          <RefreshCw class="size-3.5" />
+        </UiButton>
       </div>
-      <div
+      <UiEmpty
         v-if="loadError"
-        class="room-list-empty"
+        class="gap-3 rounded-none px-4 py-8 md:p-4"
         role="alert"
       >
-        <p>Couldn't load your conversations.</p><button
-          class="chat-button chat-button-secondary"
+        <p class="text-xs text-muted-foreground">
+          Couldn't load your conversations.
+        </p>
+        <UiButton
+          variant="secondary"
+          size="sm"
           type="button"
           @click="refresh()"
         >
           Try again
-        </button>
-      </div>
-      <div
+        </UiButton>
+      </UiEmpty>
+      <UiEmpty
         v-else-if="status === 'pending' && !hasLoadedRooms"
-        class="room-list-empty"
+        class="gap-3 rounded-none px-4 py-8 md:p-4"
+        role="status"
       >
-        <LoaderCircle
-          class="chat-spinner"
-          :size="24"
-        /><p>Loading conversations…</p>
-      </div>
-      <div
+        <LoaderCircle class="size-6 animate-spin text-primary motion-reduce:animate-none" /><p class="text-xs text-muted-foreground">
+          Loading conversations…
+        </p>
+      </UiEmpty>
+      <UiEmpty
         v-else-if="!rooms.length"
-        class="room-list-empty"
+        class="gap-3 rounded-none px-4 py-8 md:p-4"
       >
-        <MessageSquare :size="30" /><h2>Waiting for visitors</h2><p>New conversations appear here when visitors open the chat.</p>
-      </div>
-      <div
+        <MessageSquare class="size-7.5 text-muted-foreground" /><h2 class="text-base font-medium text-muted-foreground">
+          Waiting for visitors
+        </h2><p class="text-xs/relaxed text-muted-foreground">
+          New conversations appear here when visitors open the chat.
+        </p>
+      </UiEmpty>
+      <UiEmpty
         v-else-if="!filteredRooms.length"
-        class="room-list-empty"
+        class="gap-3 rounded-none px-4 py-8 md:p-4"
       >
-        <p>No conversations match your search.</p>
-      </div>
+        <p class="text-xs text-muted-foreground">
+          No conversations match your search.
+        </p>
+      </UiEmpty>
       <div
         v-else
-        class="room-list-scroll"
+        class="min-h-0 flex-1 overflow-y-auto p-2"
       >
         <button
           v-for="room in filteredRooms"
           :key="room.id"
           type="button"
-          class="room-list-entry"
-          :class="{ 'room-list-entry-selected': selectedId === room.id }"
+          class="relative flex w-full items-center gap-3 rounded-md px-3 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait"
+          :class="selectedId === room.id ? 'bg-accent before:absolute before:inset-y-4 before:left-0 before:w-0.75 before:rounded-full before:bg-primary' : 'hover:bg-muted'"
           :aria-current="selectedId === room.id ? 'true' : undefined"
           :disabled="busy"
           @click="selectRoom(room.id)"
         >
-          <span class="room-avatar">V<span
+          <span class="relative grid size-9 shrink-0 place-items-center rounded-full border bg-muted text-muted-foreground">V<span
             v-if="room.operatorName"
-            class="room-joined-dot"
-          /></span><span class="room-entry-copy"><span><strong>{{ room.title }}</strong><small>{{ dateLabel(room.createdAt) }}</small></span><span>{{ room.operatorName ? 'Claimed by you' : 'Unclaimed · Open to join' }}</span></span>
+            class="absolute -right-px -bottom-px size-2.5 rounded-full border-2 border-background bg-chart-2"
+          /></span>
+          <span class="block min-w-0 flex-1">
+            <span class="flex items-center gap-2"><strong class="truncate text-xs font-medium">{{ room.title }}</strong><small class="ml-auto shrink-0 text-xs text-muted-foreground">{{ dateLabel(room.createdAt) }}</small></span>
+            <span class="mt-1.5 block truncate text-xs text-muted-foreground">{{ room.operatorName ? 'Claimed by you' : 'Unclaimed · Open to join' }}</span>
+          </span>
         </button>
       </div>
-      <footer class="room-list-footer">
-        <ShieldCheck :size="14" /> Private conversations, just for two.
+      <footer class="mt-auto flex shrink-0 items-center justify-center gap-2 border-t px-2 py-4 text-[0.625rem] text-muted-foreground">
+        <ShieldCheck class="size-3.5 shrink-0" /> Private conversations, just for two.
       </footer>
     </section>
 
-    <main class="operator-conversation">
+    <main
+      class="min-h-0 min-w-0 flex-col overflow-hidden bg-card"
+      :class="mobileConversation ? 'flex' : 'hidden sm:flex'"
+    >
       <template v-if="selected">
-        <header class="conversation-header">
-          <button
+        <header class="flex min-h-19 shrink-0 items-center gap-3 border-b bg-background p-4 lg:px-6">
+          <UiButton
             type="button"
-            class="mobile-back"
+            variant="ghost"
+            size="icon-sm"
+            class="text-muted-foreground sm:hidden"
             aria-label="Back to conversations"
             @click="mobileConversation = false"
           >
-            <ArrowLeft :size="20" />
-          </button><span class="room-avatar">V</span><div><h2>{{ selected.title }}</h2><p><span class="status-joined" />Claimed by you</p></div><span class="conversation-private"><ShieldCheck :size="15" /> Private room</span>
+            <ArrowLeft class="size-5" />
+          </UiButton>
+          <span class="grid size-9 shrink-0 place-items-center rounded-full border bg-muted text-muted-foreground">V</span>
+          <div class="min-w-0">
+            <h2 class="truncate text-sm font-medium">
+              {{ selected.title }}
+            </h2><p class="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span class="size-1.5 rounded-full bg-chart-2" />Claimed by you
+            </p>
+          </div>
+          <span class="ml-auto hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground lg:flex"><ShieldCheck class="size-4" /> Private room</span>
         </header>
         <div
           v-if="error"
-          class="chat-error-banner"
+          class="mx-4 mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
           role="alert"
         >
           {{ error }}
@@ -209,17 +269,36 @@ function dateLabel(value: string) {
           :key="selected.id"
           :room-id="selected.id"
           peer-name="Visitor"
+          class="[&>[data-slot=composer]]:px-4 [&>[data-slot=composer]]:pb-4 lg:[&>[data-slot=composer]]:px-6"
         />
       </template>
       <div
         v-else
-        class="operator-empty-conversation"
+        class="flex flex-1 flex-col items-center justify-center p-6 text-center"
       >
-        <div class="conversation-setup-icon">
-          <Inbox :size="35" />
-        </div><span class="chat-eyebrow">WELCOME TO YOUR INBOX</span><h2>Help starts with<br>a conversation.</h2><p>Open an unclaimed conversation to join your visitor.</p><div
+        <UiButton
+          v-if="mobileConversation"
+          type="button"
+          variant="ghost"
+          size="sm"
+          class="mb-6 sm:hidden"
+          @click="mobileConversation = false"
+        >
+          <ArrowLeft class="size-4" /> Back to conversations
+        </UiButton>
+        <div class="mb-6 grid size-18 place-items-center rounded-xl border bg-accent text-primary shadow-xs">
+          <Inbox class="size-9" />
+        </div>
+        <span class="text-xs font-medium tracking-widest text-muted-foreground">WELCOME TO YOUR INBOX</span>
+        <h2 class="mt-4 text-3xl font-medium tracking-tight">
+          Help starts with<br>a conversation.
+        </h2>
+        <p class="mt-4 mb-6 text-xs/relaxed text-muted-foreground">
+          Open an unclaimed conversation to join your visitor.
+        </p>
+        <div
           v-if="error"
-          class="chat-error-banner"
+          class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
           role="alert"
         >
           {{ error }}
@@ -229,16 +308,52 @@ function dateLabel(value: string) {
 
     <aside
       v-if="selected"
-      class="operator-details"
+      class="hidden min-h-0 overflow-y-auto border-l bg-background xl:block"
+      aria-label="Conversation details"
     >
-      <h2>Conversation details</h2><div class="visitor-profile">
-        <span class="profile-avatar"><Users :size="28" /></span><h3>Your visitor</h3><p>Joined as a guest</p><span class="profile-status">Joined</span>
-      </div><div class="details-section">
-        <span class="sidebar-section-label">PARTICIPANTS</span><div><span class="participant-avatar">{{ selected.operatorName?.charAt(0).toUpperCase() }}</span><span><strong>{{ selected.operatorName }}</strong><small>Operator</small></span><Check :size="14" /></div><div><span class="participant-avatar participant-guest"><Users :size="16" /></span><span><strong>Visitor</strong><small>Anonymous guest</small></span></div>
-      </div><div class="details-section">
-        <span class="sidebar-section-label">ROOM INFORMATION</span><dl><dt>Created</dt><dd>{{ dateLabel(selected.createdAt) }}</dd><dt>Capacity</dt><dd>2 people</dd><dt>Privacy</dt><dd>Visitor + operator</dd></dl>
-      </div><div class="details-note">
-        <ShieldCheck :size="18" /><p>Only you and your visitor can access this conversation.</p>
+      <h2 class="border-b px-5 py-7 text-xs font-medium text-muted-foreground">
+        Conversation details
+      </h2>
+      <div class="px-5 pt-7 pb-6 text-center">
+        <span class="mx-auto grid size-16 place-items-center rounded-full border bg-muted text-muted-foreground"><Users class="size-7" /></span>
+        <h3 class="mt-4 text-sm font-medium">
+          Your visitor
+        </h3><p class="mt-1.5 text-xs text-muted-foreground">
+          Joined as a guest
+        </p><UiBadge
+          variant="outline"
+          class="mt-3 text-muted-foreground"
+        >
+          Joined
+        </UiBadge>
+      </div>
+      <div class="border-t p-5">
+        <span class="text-xs font-medium tracking-wider text-muted-foreground">PARTICIPANTS</span>
+        <div class="mt-4 flex items-center gap-2">
+          <span class="grid size-7 shrink-0 place-items-center rounded-full bg-accent text-xs text-primary">{{ selected.operatorName?.charAt(0).toUpperCase() }}</span>
+          <span class="min-w-0"><strong class="block text-xs font-medium wrap-anywhere">{{ selected.operatorName }}</strong><small class="mt-1 block text-xs text-muted-foreground">Operator</small></span><Check class="ml-auto size-3.5 shrink-0 text-chart-2" />
+        </div>
+        <div class="mt-4 flex items-center gap-2">
+          <span class="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"><Users class="size-4" /></span>
+          <span><strong class="block text-xs font-medium">Visitor</strong><small class="mt-1 block text-xs text-muted-foreground">Anonymous guest</small></span>
+        </div>
+      </div>
+      <div class="border-t p-5">
+        <span class="text-xs font-medium tracking-wider text-muted-foreground">ROOM INFORMATION</span>
+        <dl class="mt-5 grid grid-cols-2 gap-4 text-xs text-muted-foreground">
+          <dt>Created</dt><dd class="text-right">
+            {{ dateLabel(selected.createdAt) }}
+          </dd><dt>Capacity</dt><dd class="text-right">
+            2 people
+          </dd><dt>Privacy</dt><dd class="text-right">
+            Visitor + operator
+          </dd>
+        </dl>
+      </div>
+      <div class="m-5 flex gap-2 rounded-md bg-accent p-3 text-muted-foreground">
+        <ShieldCheck class="size-4.5 shrink-0" /><p class="text-xs/relaxed">
+          Only you and your visitor can access this conversation.
+        </p>
       </div>
     </aside>
   </div>
