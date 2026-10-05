@@ -20,14 +20,18 @@ function onEnter(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="chat-composer-wrap">
+  <div
+    data-slot="composer"
+    class="shrink-0 px-3 pb-2"
+  >
     <form
-      class="chat-composer"
+      class="rounded-lg border border-input bg-background p-3 shadow-xs focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20"
       aria-label="Message composer"
       @submit.prevent="submit"
     >
-      <textarea
+      <UiTextarea
         v-model="draft"
+        class="field-sizing-fixed min-h-0 resize-none rounded-none border-0 p-0 text-sm text-foreground shadow-none focus-visible:ring-0"
         :disabled="disabled"
         :maxlength="MAX_CHAT_MESSAGE_LENGTH"
         placeholder="Compose your message…"
@@ -35,36 +39,45 @@ function onEnter(event: KeyboardEvent) {
         rows="2"
         @keydown.enter="onEnter"
       />
-      <div class="chat-composer-tools">
-        <div>
-          <button
+      <div class="mt-1 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            class="size-6 text-muted-foreground"
             disabled
             type="button"
             aria-label="Emoji (coming soon)"
             title="Coming soon"
           >
             <Smile :size="19" />
-          </button>
-          <button
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            class="size-6 text-muted-foreground"
             disabled
             type="button"
             aria-label="Attach a file (coming soon)"
             title="Coming soon"
           >
             <Paperclip :size="19" />
-          </button>
+          </UiButton>
         </div>
-        <button
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          class="size-6 text-primary"
           :disabled="!canSend"
           type="submit"
           aria-label="Send message"
           title="Send message"
         >
           <SendHorizontal :size="21" />
-        </button>
+        </UiButton>
       </div>
     </form>
-    <p class="chat-composer-note">
+    <p class="mt-2 text-center text-xs text-muted-foreground">
       Enter to send · Shift + Enter for a new line
     </p>
   </div>
