@@ -5,6 +5,7 @@ import ChatConversation from "@/components/chat/ChatConversation.vue";
 definePageMeta({ layout: "operator", middleware: "operator" });
 useSeoMeta({ title: "Inbox | Crisp" });
 const { data: rooms } = await useOperatorRooms();
+
 const selectedId = useRouteQuery<string>("room", "");
 const selected = computed(() => rooms.value.find(room => room.id === selectedId.value && room.operatorName));
 const mobileConversation = ref(Boolean(selectedId.value));

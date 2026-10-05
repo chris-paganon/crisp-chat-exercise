@@ -5,6 +5,7 @@ import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
 const props = defineProps<{ disabled?: boolean }>();
 const draft = defineModel<string>({ default: "" });
 const emit = defineEmits<{ send: [body: string] }>();
+
 const canSend = computed(() => !props.disabled && Boolean(draft.value.trim())
   && draft.value.trim().length <= MAX_CHAT_MESSAGE_LENGTH);
 

@@ -5,6 +5,7 @@ import { timeLabel } from "@/lib/date";
 
 const props = defineProps<{ roomId: string; peerName: string }>();
 const { messages, userId, connection, send, retry } = useChatMessages(props.roomId);
+
 const draft = useState<string>(`chat-draft:${props.roomId}`, () => "");
 const messageList = ref<HTMLElement>();
 const sortedMessages = computed(() => [...messages.value].sort((a, b) =>

@@ -13,18 +13,22 @@ const room = ref<ChatRoom | null>(null);
 async function openConversation() {
   if (joining.value) return;
   joining.value = true;
+
   try {
     const session = await authClient.getSession();
     if (session.error) throw new Error("Unable to check your session.");
+
     if (session.data && !session.data.user.isAnonymous) {
       room.value = null;
       toast.error("You're signed in as an operator. Open this website in a private window to chat as a visitor.");
       return;
     }
+
     if (!session.data) {
       const guest = await authClient.signIn.anonymous();
       if (guest.error) throw new Error("Unable to create your visitor session.");
     }
+
     room.value = await $fetch<ChatRoom>("/api/rooms", { method: "POST" });
   }
   catch (cause) {
@@ -89,6 +93,7 @@ useIntervalFn(async () => {
             <X class="size-5" />
           </UiButton>
         </header>
+
         <ChatConversation
           v-if="room && !joining"
           :key="room.id"
@@ -108,11 +113,13 @@ useIntervalFn(async () => {
             <UiEmptyHeader>
               <h3 class="text-sm font-medium">
                 Opening your conversation
-              </h3><UiEmptyDescription class="text-xs">
+              </h3>
+              <UiEmptyDescription class="text-xs">
                 Getting everything ready for you…
               </UiEmptyDescription>
             </UiEmptyHeader>
           </UiEmpty>
+
           <UiEmpty
             v-else
             class="min-h-55 gap-4 px-3 py-5 md:p-5"
@@ -123,7 +130,8 @@ useIntervalFn(async () => {
             <UiEmptyHeader>
               <h3 class="text-sm font-medium">
                 We couldn't connect you
-              </h3><UiEmptyDescription class="max-w-68 text-xs">
+              </h3>
+              <UiEmptyDescription class="max-w-68 text-xs">
                 Please try again to open your conversation.
               </UiEmptyDescription>
             </UiEmptyHeader>
@@ -142,6 +150,7 @@ useIntervalFn(async () => {
         </footer>
       </section>
     </Transition>
+
     <div
       v-if="!open"
       class="absolute right-17 bottom-2.5 flex w-max items-center gap-2.5 rounded-md border bg-popover px-4 py-3 text-xs text-popover-foreground shadow-sm sm:right-19"
@@ -160,7 +169,8 @@ useIntervalFn(async () => {
       <X
         v-if="open"
         class="size-7"
-      /><MessageSquare
+      />
+      <MessageSquare
         v-else
         class="size-7"
         fill="currentColor"
