@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Paperclip, SendHorizontal, Smile } from "lucide-vue-next";
+import { Paperclip, SendHorizontal } from "lucide-vue-next";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
 
 const props = defineProps<{ disabled?: boolean }>();
@@ -41,17 +41,6 @@ function onEnter(event: KeyboardEvent) {
       />
       <div class="mt-1 flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
-          <UiButton
-            variant="ghost"
-            size="icon-sm"
-            class="size-6 text-muted-foreground"
-            disabled
-            type="button"
-            aria-label="Emoji (coming soon)"
-            title="Coming soon"
-          >
-            <Smile :size="19" />
-          </UiButton>
           <UiButton
             variant="ghost"
             size="icon-sm"

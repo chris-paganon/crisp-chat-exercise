@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, Inbox, LogOut, MessageSquare, Users } from "lucide-vue-next";
+import { Inbox, LogOut, MessageSquare, Users } from "lucide-vue-next";
 import { authClient } from "@/lib/auth-client";
 
 const { data: session } = await authClient.useSession(useFetch);
@@ -25,16 +25,12 @@ async function signOut() {
       <NuxtLink
         to="/"
         aria-label="Crisp home"
-        class="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring lg:ml-2"
+        class="mb-4  rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring lg:ml-2"
       >
         <ChatCrispLogo class="[&>span]:hidden lg:[&>span]:inline" />
       </NuxtLink>
-      <div class="mx-2 mt-8 mb-6 hidden items-center gap-2.5 lg:flex">
-        <span class="grid size-9 shrink-0 place-items-center rounded-md border bg-accent text-primary"><MessageSquare class="size-5" /></span>
-        <div><strong class="text-base font-medium">My workspace</strong><small class="mt-1 block text-base text-muted-foreground">Personal support inbox</small></div>
-      </div>
-      <div class="mt-8 flex items-center justify-center gap-2.5 rounded-sm bg-sidebar-primary px-2 py-3 text-sidebar-primary-foreground shadow-xs lg:mt-0 lg:justify-start lg:px-3">
-        <Inbox class="size-4.5 shrink-0" /><span class="hidden lg:inline">Inbox</span><span class="ml-auto hidden text-base lg:inline">{{ rooms.length }}</span>
+      <div class="flex items-center justify-center gap-2 rounded-sm bg-sidebar-primary px-2 py-3 text-sidebar-primary-foreground shadow-xs lg:mt-0 lg:justify-start lg:px-3">
+        <Inbox class="size-4 shrink-0" /><span class="hidden lg:inline">Inbox</span><span class="ml-auto hidden text-base lg:inline">{{ rooms.length }}</span>
       </div>
       <span class="mx-3 mt-7 mb-3 hidden text-base font-medium tracking-wider text-muted-foreground lg:block">YOUR INBOX</span>
       <div class="hidden items-center gap-2 rounded-sm bg-sidebar-accent px-3 py-2.5 text-base text-sidebar-accent-foreground lg:flex">
@@ -51,12 +47,6 @@ async function signOut() {
         >
           {{ error }}
         </p>
-        <NuxtLink
-          to="/"
-          class="mx-2 my-4 hidden items-center gap-2 rounded-sm text-base text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring lg:flex"
-        >
-          <ExternalLink class="size-4" /> View visitor website
-        </NuxtLink>
         <div class="flex min-w-0 flex-col items-center gap-2.5 border-t py-4 lg:flex-row">
           <span class="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-base text-primary">{{ session?.user.name.charAt(0).toUpperCase() }}</span>
           <div class="hidden min-w-0 lg:block">

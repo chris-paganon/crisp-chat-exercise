@@ -1,20 +1,14 @@
 <script setup lang="ts">
-import { LoaderCircle, MessageSquare, RefreshCw, Search, ShieldCheck } from "lucide-vue-next";
+import { LoaderCircle, MessageSquare, RefreshCw } from "lucide-vue-next";
 import { chatError } from "@/lib/chat-error";
 import type { ChatRoom } from "~~/shared/types/chat";
 
 const emit = defineEmits<{ open: []; claimError: [] }>();
 const { data: rooms, error: loadError, status, refresh } = await useOperatorRooms();
-const hasLoadedRooms = ref(status.value === "success");
-watch(status, (value) => {
-  if (value === "success") hasLoadedRooms.value = true;
-});
+
 const selectedId = useRouteQuery<string>("room", "");
-const search = ref("");
-const filteredRooms = computed(() => rooms.value.filter(room => room.title.toLowerCase().includes(search.value.toLowerCase())));
 const busy = ref(false);
 const error = ref("");
-const unclaimedCount = computed(() => rooms.value.filter(room => !room.operatorName).length);
 
 watch(selectedId, () => {
   error.value = "";
@@ -24,9 +18,13 @@ watch(selectedId, () => {
 const { pause, resume } = useIntervalFn(() => {
   void refresh();
 }, 5000, { immediate: false });
+
 onMounted(() => {
   resume();
-  if (selectedId.value) void selectRoom(selectedId.value);
+
+  if (selectedId.value) {
+    void selectRoom(selectedId.value);
+  }
 });
 onBeforeUnmount(pause);
 
@@ -64,7 +62,6 @@ function dateLabel(value: string) {
       <h1 class="text-2xl font-medium tracking-tight">
         Inbox
       </h1>
-      <span class="mt-1 block text-base text-muted-foreground">{{ unclaimedCount }} unclaimed · {{ rooms.length - unclaimedCount }} yours</span>
     </header>
     <p
       v-if="error"
@@ -73,16 +70,6 @@ function dateLabel(value: string) {
     >
       {{ error }}
     </p>
-    <div class="relative mx-4 mb-5 shrink-0">
-      <Search class="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
-      <UiInput
-        v-model="search"
-        type="search"
-        class="h-11 rounded-sm bg-muted pl-9 text-base md:text-base"
-        placeholder="Search conversations"
-        aria-label="Search conversations"
-      />
-    </div>
     <div class="flex shrink-0 items-center justify-between border-b px-5 pb-3 text-base font-medium text-muted-foreground">
       <span>All conversations</span>
       <UiButton
@@ -115,7 +102,7 @@ function dateLabel(value: string) {
       </UiButton>
     </UiEmpty>
     <UiEmpty
-      v-else-if="status === 'pending' && !hasLoadedRooms"
+      v-else-if="status !== 'success'"
       class="gap-3 rounded-none px-4 py-8 md:p-4"
       role="status"
     >
@@ -133,20 +120,12 @@ function dateLabel(value: string) {
         New conversations appear here when visitors open the chat.
       </p>
     </UiEmpty>
-    <UiEmpty
-      v-else-if="!filteredRooms.length"
-      class="gap-3 rounded-none px-4 py-8 md:p-4"
-    >
-      <p class="text-base text-muted-foreground">
-        No conversations match your search.
-      </p>
-    </UiEmpty>
     <div
       v-else
       class="min-h-0 flex-1 overflow-y-auto p-2"
     >
       <button
-        v-for="room in filteredRooms"
+        v-for="room in rooms"
         :key="room.id"
         type="button"
         class="relative flex w-full items-center gap-3 rounded-md px-3 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait"
@@ -165,8 +144,5 @@ function dateLabel(value: string) {
         </span>
       </button>
     </div>
-    <footer class="mt-auto flex shrink-0 items-center justify-center gap-2 border-t p-4 text-center text-base text-muted-foreground">
-      <ShieldCheck class="size-3.5 shrink-0" /> Private conversations, just for two.
-    </footer>
   </section>
 </template>
