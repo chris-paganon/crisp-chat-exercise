@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { LoaderCircle, MessageSquare, RefreshCw } from "lucide-vue-next";
+import { MessageSquare, RefreshCw } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { chatError } from "@/lib/chat-error";
 import { dateLabel } from "@/lib/date";
 import type { ChatRoom } from "~~/shared/types/chat";
 
 const emit = defineEmits<{ open: []; claimError: [] }>();
-const { data: rooms, error: loadError, status, refresh } = useOperatorRooms();
+const { data: rooms, error: loadError, refresh } = useOperatorRooms();
 
 const selectedId = useRouteQuery<string>("room", "");
 const busy = ref(false);
@@ -66,7 +66,6 @@ async function selectRoom(id: string) {
         size="icon-sm"
         class="size-6 text-muted-foreground"
         aria-label="Refresh conversations"
-        :disabled="status === 'pending'"
         @click="refresh()"
       >
         <RefreshCw class="size-3.5" />
@@ -88,15 +87,6 @@ async function selectRoom(id: string) {
       >
         Try again
       </UiButton>
-    </UiEmpty>
-    <UiEmpty
-      v-else-if="status === 'pending' && !rooms.length"
-      class="gap-3 rounded-none px-4 py-8 md:p-4"
-      role="status"
-    >
-      <LoaderCircle class="size-6 animate-spin text-primary motion-reduce:animate-none" /><p class="text-base text-muted-foreground">
-        Loading conversations…
-      </p>
     </UiEmpty>
     <UiEmpty
       v-else-if="!rooms.length"
