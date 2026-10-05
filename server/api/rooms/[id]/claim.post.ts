@@ -1,10 +1,9 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "#server/db";
 import { room } from "#server/db/schema";
-import { getRoomSummary, requireChatOrigin, requireOperator } from "#server/utils/chat";
+import { getRoomSummary, requireOperator } from "#server/utils/chat";
 
 export default defineEventHandler(async (event) => {
-  requireChatOrigin(event);
   const operator = await requireOperator(event);
   const id = getRouterParam(event, "id") ?? "";
   await getDb().transaction(async (tx) => {

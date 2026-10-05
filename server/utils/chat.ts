@@ -12,13 +12,6 @@ export async function requireOperator(event: H3Event) {
   return currentUser;
 }
 
-export function requireChatOrigin(event: H3Event) {
-  const origin = getHeader(event, "origin");
-  if (origin !== new URL(useRuntimeConfig().betterAuthUrl).origin) {
-    throw createError({ statusCode: 403, statusMessage: "Invalid request origin." });
-  }
-}
-
 export async function getRoomSummary(roomId: string) {
   const db = getDb();
   const [record] = await db.select({

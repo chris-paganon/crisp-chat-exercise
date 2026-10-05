@@ -2,11 +2,10 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { getDb } from "#server/db";
 import { room } from "#server/db/schema";
-import { getRoomSummary, requireChatOrigin } from "#server/utils/chat";
+import { getRoomSummary } from "#server/utils/chat";
 import { requireUser } from "#server/utils/require-user";
 
 export default defineEventHandler(async (event) => {
-  requireChatOrigin(event);
   const visitor = await requireUser(event);
   if (!visitor.isAnonymous) {
     throw createError({ statusCode: 403, statusMessage: "Only visitors can start a conversation." });
