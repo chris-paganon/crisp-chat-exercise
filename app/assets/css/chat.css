@@ -60,7 +60,6 @@
 .preview-selected-room small { display: block; margin-top: 4px; color: #7c8ba0; font-size: 10px; }
 .preview-conversation { display: flex; align-items: center; flex-direction: column; padding: 21px; text-align: center; }
 .preview-conversation-label { color: #9aa7b8; font-size: 10px; }
-.preview-invite-icon { display: grid; width: 49px; height: 49px; margin: 22px 0 12px; place-items: center; border-radius: 15px; background: #edf5ff; color: #2478f5; }
 .preview-conversation strong { font-size: 14px; }
 .preview-conversation p { margin-top: 7px; color: #7c8ba0; font-size: 11px; }
 .home-how { max-width: 1080px; margin: auto; padding: 80px 36px; text-align: center; }
@@ -148,7 +147,6 @@
 .operator-room-list > header { display: flex; align-items: center; justify-content: space-between; padding: 25px 22px 22px; }
 .operator-room-list h1 { font-size: 23px; font-weight: 700; letter-spacing: -.6px; }
 .operator-room-list header span { display: block; margin-top: 4px; color: #96a1b2; font-size: 11px; }
-.new-room-button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #e2eafa; border-radius: 8px; background: #f3f7ff; color: #2478f5; }
 .room-search { display: flex; align-items: center; gap: 9px; margin: 0 17px 23px; padding: 10px 11px; border: 1px solid #e9edf4; border-radius: 7px; background: #fbfcfe; color: #96a3b6; }
 .room-search input { width: 100%; min-width: 0; border: 0; background: transparent; font-size: 11px; outline: 0; }
 .room-search:focus-within { border-color: #8db6f7; }
@@ -177,8 +175,7 @@
 .conversation-header > div { min-width: 0; }
 .conversation-header h2 { overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-header p { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: #9aa6b8; font-size: 10px; }
-.status-waiting, .status-joined { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #d9b76c; }
-.status-joined { background: #76b687; }
+.status-joined { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #76b687; }
 .conversation-private { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; color: #9aa6b8; font-size: 10px; }
 .conversation-content { flex: 1; padding: 28px 24px; overflow-y: auto; }
 .conversation-date { color: #a7b1c1; font-size: 10px; text-align: center; }
@@ -186,19 +183,6 @@
 .conversation-setup-icon { display: grid; width: 72px; height: 72px; margin: 0 auto 24px; place-items: center; border: 1px solid #dfebff; border-radius: 23px; background: linear-gradient(#eff6ff, #f9fbff); color: #2478f5; box-shadow: 0 5px 15px #2c6ece07; }
 .conversation-setup h2 { margin: 12px 0 13px; font-size: 26px; font-weight: 700; letter-spacing: -.8px; }
 .conversation-setup > p { max-width: 330px; margin: auto; color: #8d9bb1; font-size: 12px; line-height: 1.8; }
-.invite-card { margin-top: 28px; padding: 19px; border: 1px solid #e1e9f6; border-radius: 11px; background: white; box-shadow: 0 5px 15px #24324a03; text-align: left; }
-.invite-card-heading { display: flex; align-items: center; gap: 8px; color: #6683ae; }
-.invite-card-heading strong { color: #526682; font-size: 11px; font-weight: 700; }
-.invite-card-heading span { margin-left: auto; padding: 3px 6px; border-radius: 5px; background: #f0f5fd; color: #91a2bc; font-size: 9px; }
-.invite-input-label { display: block; margin-top: 20px; color: #8c9bb2; font-size: 10px; }
-.invite-input-wrap { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.invite-input-wrap input { width: 100%; min-width: 0; padding: 11px; border: 1px solid #e5ebf5; border-radius: 6px; background: #f9fbff; color: #7993ba; font-size: 10px; outline-color: #2478f5; }
-.invite-input-wrap .chat-button { min-height: 36px; padding: 8px 12px; font-size: 11px; }
-.invite-card > small { display: block; margin-top: 8px; color: #a3aec0; font-size: 9px; }
-.invite-card > p { margin-top: 16px; color: #92a0b5; font-size: 11px; line-height: 1.7; }
-.invite-replace-button { display: flex; align-items: center; gap: 6px; margin-top: 19px; color: #2478f5; font-size: 11px; }
-.invite-replace-button:disabled { opacity: .5; }
-.invite-card > .invite-card-note { margin-top: 10px; color: #adb7c7; font-size: 9px; }
 .conversation-joined-badge { display: inline-flex; align-items: center; gap: 7px; margin-top: 30px; padding: 10px 14px; border: 1px solid #d4ebdc; border-radius: 30px; background: #f0faf4; color: #63a27c; font-size: 11px; }
 .operator-conversation > .chat-composer-wrap { padding: 0 24px 17px; }
 .operator-conversation .chat-composer { padding: 16px; border: 1px solid #e1e8f3; background: white; }
@@ -228,11 +212,6 @@
 .details-note svg { flex-shrink: 0; }
 .details-note p { font-size: 9px; line-height: 1.7; }
 .mobile-back { display: none; }
-.create-room-form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
-.create-room-form label { font-size: 13px; font-weight: 500; }
-.create-room-form input { width: 100%; padding: 11px 13px; border: 1px solid #e1e8f3; border-radius: 8px; font-size: 13px; outline-color: #2478f5; }
-.create-room-form > div { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
-.create-room-error { color: #b34c35; font-size: 12px; }
 
 @media (min-width: 1450px) {
   .operator-app { grid-template-columns: 235px 330px minmax(0, 1fr) 275px; }
