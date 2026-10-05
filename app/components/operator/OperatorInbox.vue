@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { LoaderCircle, MessageSquare, RefreshCw } from "lucide-vue-next";
+import { toast } from "vue-sonner";
 import { chatError } from "@/lib/chat-error";
 import type { ChatRoom } from "~~/shared/types/chat";
 
@@ -8,11 +9,6 @@ const { data: rooms, error: loadError, status, refresh } = await useOperatorRoom
 
 const selectedId = useRouteQuery<string>("room", "");
 const busy = ref(false);
-const error = ref("");
-
-watch(selectedId, () => {
-  error.value = "";
-});
 
 // Refresh the inbox for newly opened or claimed visitor rooms.
 const { pause, resume } = useIntervalFn(() => {
@@ -31,7 +27,6 @@ onBeforeUnmount(pause);
 async function selectRoom(id: string) {
   if (busy.value) return;
   busy.value = true;
-  error.value = "";
   try {
     const current = rooms.value.find(room => room.id === id);
     if (!current?.operatorName) {
@@ -43,7 +38,7 @@ async function selectRoom(id: string) {
   }
   catch (cause) {
     await refresh();
-    error.value = chatError(cause, "Couldn't open the conversation. Please try again.");
+    toast.error(chatError(cause, "Couldn't open the conversation. Please try again."));
     emit("claimError");
   }
   finally { busy.value = false; }
@@ -63,13 +58,6 @@ function dateLabel(value: string) {
         Inbox
       </h1>
     </header>
-    <p
-      v-if="error"
-      class="mx-4 mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive"
-      role="alert"
-    >
-      {{ error }}
-    </p>
     <div class="flex shrink-0 items-center justify-between border-b px-5 pb-3 text-base font-medium text-muted-foreground">
       <span>All conversations</span>
       <UiButton

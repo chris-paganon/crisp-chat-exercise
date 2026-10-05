@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { Inbox, LogOut, MessageSquare, Users } from "lucide-vue-next";
+import { toast } from "vue-sonner";
 import { authClient } from "@/lib/auth-client";
 
 const { data: session } = await authClient.useSession(useFetch);
 const { data: rooms } = await useOperatorRooms();
 const unclaimedCount = computed(() => rooms.value.filter(room => !room.operatorName).length);
-const error = ref("");
 
 async function signOut() {
   const result = await authClient.signOut();
   if (result.error) {
-    error.value = "Couldn't sign out. Please try again.";
+    toast.error("Couldn't sign out. Please try again.");
     return;
   }
   await navigateTo("/");
@@ -40,13 +40,6 @@ async function signOut() {
         <Users class="size-4" /> Unclaimed <span class="ml-auto">{{ unclaimedCount }}</span>
       </div>
       <div class="mt-auto w-full">
-        <p
-          v-if="error"
-          class="absolute inset-x-4 top-4 z-20 mx-auto max-w-md rounded-md border border-destructive/30 bg-background px-4 py-3 text-base text-destructive"
-          role="alert"
-        >
-          {{ error }}
-        </p>
         <div class="flex min-w-0 flex-col items-center gap-2.5 border-t py-4 lg:flex-row">
           <span class="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-base text-primary">{{ session?.user.name.charAt(0).toUpperCase() }}</span>
           <div class="hidden min-w-0 lg:block">
