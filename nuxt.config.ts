@@ -27,7 +27,7 @@ export default defineNuxtConfig({
       ],
     },
   },
-  css: ["~/assets/css/tailwind.css", "~/assets/css/chat.css"],
+  css: ["~/assets/css/tailwind.css"],
 
   runtimeConfig: {
     databaseUrl: "postgresql://dockiy-nuxt-betterauth:secret-password@localhost:5432/dockiy-nuxt-betterauth",
