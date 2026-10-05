@@ -7,17 +7,24 @@ import { createTransferManager } from "@/lib/file-transfer/manager";
 export function useFileTransfers(chat: ChatConnection) {
   const transfers = ref<TransferView[]>([]);
   const busy = computed(() => transfers.value.some(isTransferActive));
+
   const manager = createTransferManager({
     userId: () => chat.userId.value,
     send: chat.transmit,
     changed: (items) => { transfers.value = items; },
   });
   const unsubscribe = chat.onEvent((event) => {
-    if (event.type.startsWith("file-")) manager.receive(event as FileServerEvent);
+    if (event.type.startsWith("file-")) {
+      manager.receive(event as FileServerEvent);
+    }
   });
+
   watch(chat.connection, (state) => {
-    if (state !== "connected") manager.disconnect();
+    if (state !== "connected") {
+      manager.disconnect();
+    }
   }, { flush: "sync" });
+
   // Best effort on normal navigation; the server also detects abrupt socket closure.
   onMounted(() => window.addEventListener("pagehide", manager.disconnect));
   onBeforeUnmount(() => {

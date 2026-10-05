@@ -86,7 +86,10 @@ export function useChatConnection(roomId: string) {
           current.close();
         }
       }
-      for (const listener of listeners) listener(event);
+
+      for (const listener of listeners) {
+        listener(event);
+      }
     }
     catch {
       toast.error("Couldn't read the conversation. Reconnecting…", { id: errorToastId });
