@@ -43,17 +43,38 @@ export function createReceiveSession(options: ReceiveSessionOptions): TransferSe
 function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
   let stopped = false;
   let awaitingCompletion = false;
+  let transportError: Error | undefined;
   let channel: RTCDataChannel | undefined;
   let stopTransfer: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout>;
 
   function fail(error: unknown) {
-    if (!stopped) options.fail(asTransferError(error));
+    if (stopped || transportError) return;
+
+    if (channel?.readyState === "closing" || channel?.readyState === "closed") {
+      awaitServerResult(error);
+      return;
+    }
+
+    options.fail(asTransferError(error));
   }
   // Keep a 30sec activity timer running. If it expires, the transfer is aborted.
   function activity() {
     clearTimeout(timer);
-    timer = setTimeout(() => fail(new Error("File transfer timed out. Please send it again.")), TRANSFER_TIMEOUT_MS);
+    timer = setTimeout(() => {
+      if (!stopped) {
+        options.fail(transportError ?? new Error("File transfer timed out. Please send it again."));
+      }
+    }, TRANSFER_TIMEOUT_MS);
+  }
+  function awaitServerResult(error: unknown) {
+    if (stopped || transportError) return;
+
+    // Closing WebRTC and delivering file-ended use independent transports.
+    // Stop I/O, but let the server's cancellation arrive before reporting failure.
+    transportError = asTransferError(error);
+    stopTransfer?.();
+    activity();
   }
   function progress(bytes: number) {
     activity();
@@ -68,7 +89,9 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
     connectionLost(state) {
       // After end is sent, the receiver can close before file-ended arrives.
       // The activity timer still bounds our wait for the server result.
-      if (!awaitingCompletion || state === "failed") fail(new Error("Peer connection lost. Send the file again once connected."));
+      if (!awaitingCompletion || state === "failed") {
+        awaitServerResult(new Error("Peer connection lost. Send the file again once connected."));
+      }
     },
     onRtcDataChannel: setupRtcDataChannel,
   });
@@ -108,7 +131,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
 
     current.onmessage = ({ data }) => {
       try {
-        if (stopped || awaitingCompletion) return;
+        if (stopped || transportError || awaitingCompletion) return;
 
         transfer.receiveFileChannelMessage(data);
       }
@@ -119,7 +142,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
 
     let opened = false;
     current.onopen = () => {
-      if (stopped || opened) return;
+      if (stopped || transportError || opened) return;
 
       opened = true;
       activity();
@@ -132,10 +155,12 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
     }
 
     current.onerror = () => {
-      fail(new Error("File data channel failed."));
+      awaitServerResult(new Error("File data channel failed."));
     };
     current.onclose = () => {
-      if (!awaitingCompletion) fail(new Error("File data channel closed before completion."));
+      if (!awaitingCompletion) {
+        awaitServerResult(new Error("File data channel closed before completion."));
+      }
     };
   }
 
