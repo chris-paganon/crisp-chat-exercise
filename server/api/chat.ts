@@ -5,7 +5,7 @@ import { message } from "#server/db/schema";
 import { auth } from "#server/utils/auth";
 import { requireRoomMemberById } from "#server/utils/chat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
-import type { ChatMessage, ChatServerEvent } from "~~/shared/types/chat";
+import type { ChatServerEvent } from "~~/shared/types/chat";
 
 const clientEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ping") }),
@@ -16,16 +16,14 @@ const clientEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-function serializeMessage(record: typeof message.$inferSelect): ChatMessage {
-  return {
-    id: record.id,
-    roomId: record.roomId,
-    senderId: record.senderId,
-    clientId: record.clientId,
-    body: record.body,
-    createdAt: record.createdAt.toISOString(),
-  };
-}
+const messageFields = {
+  id: message.id,
+  roomId: message.roomId,
+  senderId: message.senderId,
+  clientId: message.clientId,
+  body: message.body,
+  createdAt: message.createdAt,
+};
 
 export default defineWebSocketHandler({
   async upgrade(request) {
@@ -50,13 +48,13 @@ export default defineWebSocketHandler({
     // Subscribe before reading history so concurrent messages cannot fall in a gap.
     peer.subscribe(`room:${roomId}`);
     try {
-      const history = await getDb().select().from(message)
+      const history = await getDb().select(messageFields).from(message)
         .where(eq(message.roomId, roomId)).orderBy(asc(message.createdAt), asc(message.id));
       peer.send({
         type: "ready",
         userId: peer.context.userId as string,
-        messages: history.map(serializeMessage),
-      } satisfies ChatServerEvent);
+        messages: history,
+      } satisfies ChatServerEvent<Date>);
     }
     catch (error) {
       console.error("Failed to load chat history.", error);
@@ -100,15 +98,15 @@ export default defineWebSocketHandler({
         senderId: userId,
         clientId: parsed.data.clientId,
         body: parsed.data.body,
-      }).onConflictDoNothing({ target: [message.roomId, message.senderId, message.clientId] }).returning();
+      }).onConflictDoNothing({ target: [message.roomId, message.senderId, message.clientId] }).returning(messageFields);
       // A retry returns the original persisted message, even if the acknowledgement was lost.
-      const record = inserted ?? (await db.select().from(message).where(and(
+      const record = inserted ?? (await db.select(messageFields).from(message).where(and(
         eq(message.roomId, roomId),
         eq(message.senderId, userId),
         eq(message.clientId, parsed.data.clientId),
       )))[0];
       if (!record) throw new Error("Message was not saved.");
-      const event = { type: "message", message: serializeMessage(record) } satisfies ChatServerEvent;
+      const event = { type: "message", message: record } satisfies ChatServerEvent<Date>;
       peer.send(event);
       // CrossWS's Node adapter treats published objects as binary frames.
       peer.publish(`room:${roomId}`, JSON.stringify(event));
