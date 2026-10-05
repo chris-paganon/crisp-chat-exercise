@@ -133,3 +133,80 @@ test("room coordination enforces one transfer, recipient consent and tab ownersh
     peers.forEach(unregisterTransferPeer);
   }
 });
+
+test("cancelling during storage preparation never accepts the offer and removes the partial file", async () => {
+  const { createTransferManager } = await import("../app/lib/file-transfer/manager.ts");
+  const original = Object.getOwnPropertyDescriptor(navigator, "storage");
+  let releaseDirectory;
+  let aborted = 0;
+  let removed = 0;
+  const directory = {
+    async getFileHandle() {
+      return {
+        async createWritable() {
+          return {
+            async abort() { aborted++; },
+          };
+        },
+      };
+    },
+    async removeEntry() { removed++; },
+  };
+  Object.defineProperty(navigator, "storage", {
+    configurable: true,
+    value: {
+      estimate: async () => ({ quota: 1000, usage: 0 }),
+      getDirectory: () => new Promise((resolve) => { releaseDirectory = resolve; }),
+    },
+  });
+  let views = [];
+  const sent = [];
+  const manager = createTransferManager({
+    userId: () => "receiver",
+    send: event => sent.push(event),
+    changed: (items) => { views = items; },
+  });
+  try {
+    const id = crypto.randomUUID();
+    manager.receive({ type: "file-offered", id, senderId: "sender", name: "file", size: 10, mime: "" });
+    const accepting = manager.accept(id);
+    await new Promise(resolve => setImmediate(resolve));
+    manager.stop(id);
+    releaseDirectory({ getDirectoryHandle: async () => directory });
+    await accepting;
+    assert.equal(views[0].status, "cancelled");
+    assert.equal(sent.some(event => event.type === "file-accept"), false);
+    assert.equal(aborted, 1);
+    assert.equal(removed, 1);
+  }
+  finally {
+    manager.dispose();
+    if (original) Object.defineProperty(navigator, "storage", original);
+    else delete navigator.storage;
+  }
+});
+
+test("a rejected offer or a disconnect releases local transfer state", async () => {
+  const { createTransferManager } = await import("../app/lib/file-transfer/manager.ts");
+  let views = [];
+  const sent = [];
+  const manager = createTransferManager({
+    userId: () => "sender",
+    send: event => sent.push(event),
+    changed: (items) => { views = items; },
+  });
+  try {
+    const file = new File(["test"], "test.txt");
+    manager.offer(file);
+    manager.receive({ type: "file-error", id: sent[0].id, message: "The other participant is offline." });
+    assert.equal(views[0].status, "failed");
+    manager.offer(file);
+    assert.equal(views[1].status, "offering");
+    manager.disconnect();
+    assert.equal(views[1].status, "failed");
+    assert.equal(sent.at(-1).type, "file-cancel");
+  }
+  finally {
+    manager.dispose();
+  }
+});
