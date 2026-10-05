@@ -17,7 +17,8 @@ const label = computed(() => {
     case "connecting": return "Connecting to the other participant…";
     case "transferring": return incoming.value ? "Receiving…" : "Sending…";
     case "finishing": return "Confirming receipt…";
-    case "completed": return incoming.value ? "Ready to download" : "Received by recipient";
+    case "interrupted": return "Transfer interrupted";
+    case "completed": return incoming.value ? (props.transfer.available ? "Ready to download" : "Received · local file unavailable") : "Received by recipient";
     case "declined": return "File declined";
     case "cancelled": return "Transfer cancelled";
     case "failed": return "Transfer failed";
@@ -95,7 +96,7 @@ function sizeLabel(bytes: number) {
       Keep this page open until the transfer finishes. You can close the chat or switch conversations.
     </p>
     <p
-      v-if="incoming && transfer.status === 'completed'"
+      v-if="incoming && transfer.status === 'completed' && transfer.available"
       class="mt-2 text-xs text-muted-foreground"
     >
       You can return to this conversation to download. Download before leaving this page.
@@ -128,7 +129,7 @@ function sizeLabel(bytes: number) {
         Cancel
       </UiButton>
       <UiButton
-        v-if="incoming && transfer.status === 'completed'"
+        v-if="incoming && transfer.status === 'completed' && transfer.available"
         type="button"
         size="sm"
         @click="$emit('download')"

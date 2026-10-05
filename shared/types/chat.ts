@@ -1,4 +1,4 @@
-import type { FileClientEvent, FileServerEvent } from "./file-transfer";
+import type { FileClientEvent, FileServerEvent, FileRecord } from "./file-transfer";
 
 export interface ChatRoom {
   id: string;
@@ -24,7 +24,7 @@ export type ChatClientEvent
 
 export type ChatServerEvent
   = | FileServerEvent
-    | { type: "ready"; userId: string; messages: ChatMessage[] }
+    | { type: "ready"; userId: string; messages: ChatMessage[]; files: FileRecord[] }
     | { type: "message"; message: ChatMessage }
     | { type: "error"; message: string; id?: string; fatal?: boolean }
     | { type: "pong" };

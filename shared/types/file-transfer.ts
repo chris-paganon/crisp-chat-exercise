@@ -3,6 +3,20 @@ export interface FileOffer {
   name: string;
   size: number;
   mime: string;
+  fingerprint?: string;
+}
+
+export type FileLifecycle = "offered" | "accepted" | "interrupted" | FileEndStatus;
+
+export interface FileRecord extends FileOffer {
+  roomId: string;
+  senderId: string;
+  receiverId: string;
+  status: FileLifecycle;
+  createdAt: Date;
+  updatedAt: Date;
+  version: number;
+  message: string | null;
 }
 
 export type FileSignal
@@ -18,7 +32,8 @@ export type FileClientEvent
 export type FileEndStatus = "completed" | "declined" | "cancelled" | "failed";
 
 export type FileServerEvent
-  = | ({ type: "file-offered"; senderId: string } & FileOffer)
+  = | { type: "file-record"; record: FileRecord }
+    | ({ type: "file-offered"; senderId: string } & FileOffer)
     | { type: "file-accepted"; id: string }
     | { type: "file-ended"; id: string; status: FileEndStatus; message?: string }
     | { type: "file-error"; id: string; message: string }

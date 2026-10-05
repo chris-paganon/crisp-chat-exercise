@@ -15,6 +15,9 @@ export function createFileTransfers(chat: ChatConnection) {
     changed: (items) => { transfers.value = items; },
   });
   const unsubscribe = chat.onEvent((event) => {
+    if (event.type === "ready") {
+      event.files.forEach(manager.restore);
+    }
     if (event.type.startsWith("file-")) {
       manager.receiveServerEvent(event as FileServerEvent);
     }

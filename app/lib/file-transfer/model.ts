@@ -1,16 +1,18 @@
 import type { FileOffer, FileEndStatus } from "~~/shared/types/file-transfer";
 
-export type TransferStatus = "offering" | "offered" | "preparing" | "connecting" | "transferring" | "finishing" | FileEndStatus;
+export type TransferStatus = "offering" | "offered" | "preparing" | "connecting" | "transferring" | "finishing" | "interrupted" | FileEndStatus;
 export interface TransferView extends FileOffer {
   direction: "incoming" | "outgoing";
   status: TransferStatus;
   bytes: number;
   createdAt: number;
   message?: string;
+  version?: number;
+  available?: boolean;
 }
 
 export function isTransferActive(transfer: TransferView) {
-  return !["completed", "declined", "cancelled", "failed"].includes(transfer.status);
+  return !["completed", "declined", "cancelled", "failed", "interrupted"].includes(transfer.status);
 }
 
 export function transferPercentage(transfer: TransferView) {

@@ -3,7 +3,7 @@ import { loadChatHistory, saveChatMessage } from "#server/utils/chat-messages";
 import { auth } from "#server/utils/auth";
 import { requireRoomMemberById } from "#server/utils/chat";
 import { chatClientEventSchema } from "#server/utils/chat-events";
-import { coordinateFileTransfer, registerTransferPeer, unregisterTransferPeer } from "#server/utils/chat-transfers";
+import { coordinateFileTransfer, registerTransferPeer, unregisterTransferPeer, serializeFileOperation, loadTransferHistory } from "#server/utils/chat-transfers";
 import type { FileClientEvent } from "~~/shared/types/file-transfer";
 import type { ChatServerEvent } from "~~/shared/types/chat";
 
@@ -35,7 +35,10 @@ export default defineWebSocketHandler({
     peer.subscribe(`room:${roomId}`);
 
     try {
-      const history = await loadChatHistory(roomId);
+      const [history, files] = await Promise.all([
+        loadChatHistory(roomId),
+        serializeFileOperation(roomId, () => loadTransferHistory(roomId)),
+      ]);
 
       if (peer.context.transferClosed) return;
       peer.context.transferReady = true;
@@ -43,6 +46,7 @@ export default defineWebSocketHandler({
         type: "ready",
         userId: peer.context.userId as string,
         messages: history,
+        files,
       } satisfies ChatServerEvent);
     }
     catch (error) {
@@ -101,7 +105,11 @@ export default defineWebSocketHandler({
       }
 
       if (parsed.data.type !== "message") {
-        if (!peer.context.transferClosed) coordinateFileTransfer(peer, parsed.data as FileClientEvent);
+        await serializeFileOperation(roomId, async () => {
+          if (!peer.context.transferClosed) {
+            await coordinateFileTransfer(peer, parsed.data as FileClientEvent);
+          }
+        });
         return;
       }
 
@@ -122,8 +130,8 @@ export default defineWebSocketHandler({
       } satisfies ChatServerEvent);
     }
   },
-  close(peer) {
+  async close(peer) {
     peer.context.transferClosed = true;
-    unregisterTransferPeer(peer);
+    await serializeFileOperation(peer.context.roomId as string, () => unregisterTransferPeer(peer));
   },
 });

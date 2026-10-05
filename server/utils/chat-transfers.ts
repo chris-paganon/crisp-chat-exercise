@@ -1,4 +1,6 @@
-import type { FileClientEvent, FileEndStatus, FileServerEvent } from "~~/shared/types/file-transfer";
+import type { FileClientEvent, FileEndStatus, FileServerEvent, FileRecord } from "~~/shared/types/file-transfer";
+
+import { loadFileHistory, saveFileOffer, updateFileRecord } from "./file-records";
 
 // Only the socket properties coordination needs; no adapter dependency.
 interface TransferPeer {
@@ -7,6 +9,7 @@ interface TransferPeer {
   send: (data: unknown) => unknown;
 }
 interface LiveTransfer {
+  record: FileRecord;
   offer: Extract<FileServerEvent, { type: "file-offered" }>;
   sender: TransferPeer;
   receiver: TransferPeer;
@@ -14,7 +17,7 @@ interface LiveTransfer {
   timer: ReturnType<typeof setTimeout>;
 }
 
-// Live coordination belongs to this server process, not persisted chat history.
+// Only live sockets and negotiation belong to this server process.
 const rooms = new Map<string, Set<TransferPeer>>();
 const transfers = new Map<string, LiveTransfer>();
 
@@ -25,30 +28,32 @@ export function registerTransferPeer(peer: TransferPeer) {
   rooms.set(roomId, peers);
 }
 
-export function unregisterTransferPeer(peer: TransferPeer) {
+export async function unregisterTransferPeer(peer: TransferPeer) {
   const roomId = peer.context.roomId as string;
   const peers = rooms.get(roomId);
   peers?.delete(peer);
   if (!peers?.size) rooms.delete(roomId);
   for (const [id, transfer] of transfers) {
     if (transfer.sender.id === peer.id || transfer.receiver.id === peer.id) {
-      end(id, "failed", "The other participant left the conversation.", peer.id);
+      await end(id, "failed", "The other participant left the conversation.", peer.id);
     }
   }
 }
 
-function end(id: string, status: FileEndStatus, message?: string, closedPeerId?: string) {
+async function end(id: string, status: FileEndStatus, message?: string, closedPeerId?: string) {
   const transfer = transfers.get(id);
   if (!transfer) return;
+  const record = await updateFileRecord(transfer.record.roomId, id, status, message);
   transfers.delete(id);
   clearTimeout(transfer.timer);
+  broadcastFileRecord(record);
   const event = { type: "file-ended", id: transfer.offer.id, status, message } satisfies FileServerEvent;
   for (const peer of [transfer.sender, transfer.receiver]) {
     if (peer.id !== closedPeerId) peer.send(event);
   }
 }
 
-export function coordinateFileTransfer(peer: TransferPeer, event: FileClientEvent) {
+export async function coordinateFileTransfer(peer: TransferPeer, event: FileClientEvent) {
   const roomId = peer.context.roomId as string;
   const fail = (message: string) => peer.send({ type: "file-error", id: event.id, message } satisfies FileServerEvent);
   const current = transfers.get(event.id);
@@ -62,8 +67,17 @@ export function coordinateFileTransfer(peer: TransferPeer, event: FileClientEven
       other.context.userId !== peer.context.userId && other.context.transferReady);
     if (!receiver) return fail("The other participant must have this conversation open.");
     const offer = { ...event, type: "file-offered", senderId: peer.context.userId as string } satisfies FileServerEvent;
-    const timer = setTimeout(() => end(event.id, "failed", "The file offer expired."), 120000);
-    transfers.set(event.id, { offer, sender: peer, receiver, accepted: false, timer });
+    const record = await saveFileOffer(roomId, peer.context.userId as string, receiver.context.userId as string, event);
+    if (record.status !== "offered") {
+      peer.send({ type: "file-record", record } satisfies FileServerEvent);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void serializeFileOperation(roomId, () => end(event.id, "failed", "The file offer expired.")).catch(console.error);
+    }, 120000);
+    transfers.set(event.id, { record, offer, sender: peer, receiver, accepted: false, timer });
+    broadcastFileRecord(record);
     receiver.send(offer);
     peer.send(offer);
     return;
@@ -77,6 +91,8 @@ export function coordinateFileTransfer(peer: TransferPeer, event: FileClientEven
   switch (event.type) {
     case "file-accept":
       if (!isReceiver || current.accepted) return fail("This offer cannot be accepted.");
+      current.record = await updateFileRecord(roomId, event.id, "accepted");
+      broadcastFileRecord(current.record);
       current.accepted = true;
       clearTimeout(current.timer);
       current.sender.send({ type: "file-accepted", id: event.id } satisfies FileServerEvent);
@@ -84,17 +100,17 @@ export function coordinateFileTransfer(peer: TransferPeer, event: FileClientEven
       break;
     case "file-decline":
       if (!isReceiver || current.accepted) return fail("This offer cannot be declined.");
-      end(event.id, "declined");
+      await end(event.id, "declined");
       break;
     case "file-cancel":
-      end(event.id, "cancelled");
+      await end(event.id, "cancelled");
       break;
     case "file-fail":
-      end(event.id, "failed", event.message);
+      await end(event.id, "failed", event.message);
       break;
     case "file-finish":
       if (!isReceiver || !current.accepted) return fail("This transfer cannot be completed.");
-      end(event.id, "completed");
+      await end(event.id, "completed");
       break;
     case "file-signal": {
       if (!current.accepted) return fail("Accept the offer before connecting.");
@@ -105,4 +121,33 @@ export function coordinateFileTransfer(peer: TransferPeer, event: FileClientEven
       break;
     }
   }
+}
+
+export function broadcastFileRecord(record: FileRecord) {
+  for (const peer of rooms.get(record.roomId) ?? []) {
+    if (peer.context.transferReady && !peer.context.transferClosed) {
+      peer.send({ type: "file-record", record } satisfies FileServerEvent);
+    }
+  }
+}
+
+// Serialize room mutations across socket messages, close events, timers and history.
+const operations = new Map<string, Promise<unknown>>();
+export function serializeFileOperation<T>(roomId: string, work: () => Promise<T>): Promise<T> {
+  const result = (operations.get(roomId) ?? Promise.resolve()).catch(() => {}).then(work);
+  operations.set(roomId, result);
+  void result.finally(() => {
+    if (operations.get(roomId) === result) operations.delete(roomId);
+  }).catch(() => {});
+  return result;
+}
+
+export async function loadTransferHistory(roomId: string) {
+  const records = await loadFileHistory(roomId);
+  return Promise.all(records.map(async (record) => {
+    if ((record.status === "offered" || record.status === "accepted") && !transfers.has(record.id)) {
+      return updateFileRecord(roomId, record.id, "interrupted", "Transfer interrupted. Reopen both conversations to resume.");
+    }
+    return record;
+  }));
 }

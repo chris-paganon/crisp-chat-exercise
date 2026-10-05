@@ -1,4 +1,4 @@
-import type { FileClientEvent, FileServerEvent, FileEndStatus, FileSignal } from "~~/shared/types/file-transfer";
+import type { FileClientEvent, FileServerEvent, FileEndStatus, FileSignal, FileRecord } from "~~/shared/types/file-transfer";
 import type { TransferView } from "./model";
 import type { FileSink } from "./storage";
 import type { TransferSession } from "./session";
@@ -113,6 +113,7 @@ export function createTransferManager(options: ManagerOptions) {
       sink,
       complete(file) {
         resource.file = file;
+        item.available = true;
         update(item, { status: "finishing" });
         try {
           options.send({ type: "file-finish", id: item.id });
@@ -168,8 +169,36 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
+  function restore(record: FileRecord) {
+    const existing = transfers.get(record.id);
+    if (existing && (existing.version ?? -1) > record.version) return;
+
+    const item: TransferView = existing ?? {
+      ...record, direction: record.senderId === options.userId() ? "outgoing" as const : "incoming" as const,
+      bytes: record.status === "completed" ? record.size : 0, createdAt: record.createdAt.getTime(),
+      status: record.status === "accepted" ? "interrupted" : record.status, message: record.message ?? undefined,
+    };
+    if (!existing) {
+      transfers.set(item.id, item);
+      resources.set(item.id, { downloads: [] });
+    }
+    item.version = record.version;
+    if (["completed", "declined", "cancelled", "failed"].includes(record.status)) {
+      finish(item, record.status as FileEndStatus, record.message ?? undefined);
+    }
+    else if (!existing) {
+      update(item, { status: record.status === "accepted" ? "interrupted" : record.status, message: record.message ?? undefined });
+    }
+    publish();
+  }
+
   function receiveServerEvent(event: FileServerEvent) {
     if (disposed) return;
+
+    if (event.type === "file-record") {
+      restore(event.record);
+      return;
+    }
 
     let item = transfers.get(event.id);
     if (event.type === "file-offered") {
@@ -285,5 +314,5 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
-  return { offer, accept, receiveServerEvent, stop, download, remove, disconnect, dispose };
+  return { restore, offer, accept, receiveServerEvent, stop, download, remove, disconnect, dispose };
 }
