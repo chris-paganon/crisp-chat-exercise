@@ -15,7 +15,7 @@ export function useFileTransfers(chat: ChatConnection) {
   });
   const unsubscribe = chat.onEvent((event) => {
     if (event.type.startsWith("file-")) {
-      manager.receive(event as FileServerEvent);
+      manager.receiveServerEvent(event as FileServerEvent);
     }
   });
 

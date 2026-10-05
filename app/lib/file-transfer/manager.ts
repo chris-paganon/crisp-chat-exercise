@@ -147,7 +147,7 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
-  function receive(event: FileServerEvent) {
+  function receiveServerEvent(event: FileServerEvent) {
     if (disposed) return;
 
     let item = transfers.get(event.id);
@@ -194,7 +194,7 @@ export function createTransferManager(options: ManagerOptions) {
         }
         break;
       case "file-signal":
-        resources.get(item.id)?.session?.receive(event.signal);
+        resources.get(item.id)?.session?.receiveSignal(event.signal);
         break;
       case "file-ended":
         finish(item, event.status, event.message);
@@ -269,5 +269,5 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
-  return { offer, accept, receive, stop, download, remove, disconnect, dispose };
+  return { offer, accept, receiveServerEvent, stop, download, remove, disconnect, dispose };
 }

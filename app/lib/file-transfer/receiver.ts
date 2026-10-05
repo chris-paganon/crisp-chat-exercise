@@ -17,7 +17,7 @@ export function createFileReceiver(
   let stopped = false;
   let writing = Promise.resolve();
 
-  function receive(data: unknown) {
+  function receiveFileChannelMessage(data: unknown) {
     if (stopped) return;
     const bytes = data instanceof ArrayBuffer ? data.byteLength : 0;
     if ((typeof data !== "string" && !(data instanceof ArrayBuffer))
@@ -71,7 +71,7 @@ export function createFileReceiver(
   }
 
   return {
-    receive,
+    receiveFileChannelMessage,
     stop() {
       stopped = true;
     },

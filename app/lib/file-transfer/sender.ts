@@ -9,7 +9,7 @@ export function createFileSender(channel: RTCDataChannel, file: File, progress: 
   let rejectWait: ((error: Error) => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  function receive(data: unknown) {
+  function receiveFileChannelMessage(data: unknown) {
     if (stopped) return;
     if (typeof data !== "string") throw new Error("Unexpected file data at sender.");
     const control = readFileControl(data);
@@ -56,7 +56,7 @@ export function createFileSender(channel: RTCDataChannel, file: File, progress: 
 
   return {
     start,
-    receive,
+    receiveFileChannelMessage,
     stop() {
       stopped = true;
       clearTimeout(timer);

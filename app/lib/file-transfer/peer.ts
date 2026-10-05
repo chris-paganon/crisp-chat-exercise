@@ -51,7 +51,7 @@ export function createFilePeer(options: PeerOptions) {
     if (!stopped) options.signal({ description: { type: "offer", sdp: peer.localDescription!.sdp } });
   }
 
-  function receive(signal: FileSignal) {
+  function receiveSignal(signal: FileSignal) {
     // Serialize descriptions and ICE; candidates may arrive before the remote description.
     signaling = signaling.then(async () => {
       if (stopped) return;
@@ -76,7 +76,7 @@ export function createFilePeer(options: PeerOptions) {
 
   return {
     start,
-    receive,
+    receiveSignal,
     close() {
       stopped = true;
       peer.close();

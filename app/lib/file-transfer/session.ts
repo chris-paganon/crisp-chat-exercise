@@ -65,7 +65,7 @@ export function createTransferSession(options: SessionOptions) {
       }, fail);
       current.onmessage = ({ data }) => {
         try {
-          if (!stopped && !delivered) (sender ?? receiver)?.receive(data);
+          if (!stopped && !delivered) (sender ?? receiver)?.receiveFileChannelMessage(data);
         }
         catch (error) {
           fail(error);
@@ -89,9 +89,10 @@ export function createTransferSession(options: SessionOptions) {
     },
   });
   activity();
+
   return {
     start: () => { void peer.start().catch(fail); },
-    receive: peer.receive,
+    receiveSignal: peer.receiveSignal,
     close() {
       stopped = true;
       clearTimeout(timer);
