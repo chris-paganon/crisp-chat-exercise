@@ -81,9 +81,9 @@ export const auth = betterAuth({
         actionLabel: "Verify email",
         actionUrl: url,
         body: "Confirm your email address to finish setting up your account.",
-        preheader: "Verify your email address to start using Dockiy.",
+        preheader: "Verify your email address to start using Crisp.",
         recipient: user,
-        subject: "Verify your Dockiy email",
+        subject: "Verify your Crisp email",
         title: "Verify your email",
       }).catch((error) => {
         console.error("Failed to send verification email.", error);
@@ -99,9 +99,9 @@ export const auth = betterAuth({
         actionLabel: "Reset password",
         actionUrl: url,
         body: "Use this secure link to choose a new password. The link expires in one hour.",
-        preheader: "Reset your Dockiy password.",
+        preheader: "Reset your Crisp password.",
         recipient: user,
-        subject: "Reset your Dockiy password",
+        subject: "Reset your Crisp password",
         title: "Reset your password",
       }).catch((error) => {
         console.error("Failed to send password reset email.", error);
