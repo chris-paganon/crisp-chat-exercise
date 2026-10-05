@@ -1,10 +1,11 @@
-import type { ChatConnection } from "./useChatConnection";
+import { computed, ref, watch } from "vue";
+import type { ChatConnection } from "./connection";
 import type { FileServerEvent } from "~~/shared/types/file-transfer";
 import type { TransferView } from "@/lib/file-transfer/model";
 import { isTransferActive } from "@/lib/file-transfer/model";
 import { createTransferManager } from "@/lib/file-transfer/manager";
 
-export function useFileTransfers(chat: ChatConnection) {
+export function createFileTransfers(chat: ChatConnection) {
   const transfers = ref<TransferView[]>([]);
   const busy = computed(() => transfers.value.some(isTransferActive));
 
@@ -19,19 +20,17 @@ export function useFileTransfers(chat: ChatConnection) {
     }
   });
 
-  watch(chat.connection, (state) => {
+  const stopWatching = watch(chat.connection, (state) => {
     if (state !== "connected") {
       manager.disconnect();
     }
   }, { flush: "sync" });
 
-  // Best effort on normal navigation; the server also detects abrupt socket closure.
-  onMounted(() => window.addEventListener("pagehide", manager.disconnect));
-  onBeforeUnmount(() => {
+  function dispose() {
     unsubscribe();
-    window.removeEventListener("pagehide", manager.disconnect);
+    stopWatching();
     manager.dispose();
-  });
+  }
 
-  return { transfers, busy, ...manager };
+  return { transfers, busy, ...manager, dispose };
 }

@@ -1,0 +1,98 @@
+import { effectScope, onScopeDispose, ref, shallowRef, watch } from "vue";
+import type { Ref } from "vue";
+import { createChatConnection } from "./connection";
+import { createChatMessages } from "./messages";
+import { createFileTransfers } from "./transfers";
+
+/** One registry per Nuxt app; sockets, peers and files never enter serialized state. */
+export function createRoomSessions() {
+  const entries = new Map<string, ReturnType<typeof createEntry>>();
+  const sessions = shallowRef<RoomSession[]>([]);
+
+  function createEntry(roomId: string) {
+    // A detached scope survives conversation component unmounts.
+    const scope = effectScope(true);
+    const session = scope.run(() => {
+      const chat = createChatConnection(roomId);
+      const messages = createChatMessages(roomId, chat);
+      const files = createFileTransfers(chat);
+      const views = ref(0);
+
+      watch(files.busy, (busy) => {
+        if (!views.value && !busy) {
+          chat.close();
+        }
+      }, { flush: "sync" });
+
+      watch(chat.sessionEnded, (ended) => {
+        if (ended) {
+          clear();
+        }
+      }, { flush: "post" });
+
+      onScopeDispose(() => {
+        // Notify the peer before disposing the signaling socket.
+        files.dispose();
+        messages.dispose();
+        chat.dispose();
+      });
+
+      return { roomId, chat, messages, files, views };
+    })!;
+
+    return { session, dispose: () => scope.stop() };
+  }
+
+  function acquire(roomId: string) {
+    let entry = entries.get(roomId);
+    if (!entry) {
+      entry = createEntry(roomId);
+      entries.set(roomId, entry);
+      sessions.value = [...entries.values()].map(item => item.session);
+    }
+
+    entry.session.views.value++;
+    return entry.session;
+  }
+
+  function release(session: RoomSession) {
+    session.views.value = Math.max(0, session.views.value - 1);
+    if (!session.views.value && !session.files.busy.value) {
+      session.chat.close();
+    }
+  }
+
+  function clear() {
+    const previous = [...entries.values()];
+    entries.clear();
+    sessions.value = [];
+    previous.forEach(entry => entry.dispose());
+  }
+
+  function suspend() {
+    for (const { session } of entries.values()) {
+      session.files.disconnect();
+      session.chat.close();
+      // Release browser storage on page exit, including completed downloads.
+      session.files.transfers.value.forEach(item => session.files.remove(item.id));
+    }
+  }
+
+  function resume() {
+    for (const { session } of entries.values()) {
+      if (session.views.value) {
+        session.chat.connect();
+      }
+    }
+  }
+
+  return { sessions, acquire, release, clear, suspend, resume };
+}
+
+export interface RoomSession {
+  roomId: string;
+  chat: ReturnType<typeof createChatConnection>;
+  messages: ReturnType<typeof createChatMessages>;
+  files: ReturnType<typeof createFileTransfers>;
+  views: Ref<number>;
+}

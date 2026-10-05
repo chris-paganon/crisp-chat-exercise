@@ -4,6 +4,7 @@ import { toast } from "vue-sonner";
 import { authClient } from "@/lib/auth-client";
 
 const { data: session } = await authClient.useSession(useFetch);
+const { $roomSessions } = useNuxtApp();
 const { data: rooms } = await useOperatorRooms();
 const unclaimedCount = computed(() => rooms.value.filter(room => !room.operatorName).length);
 
@@ -13,6 +14,7 @@ async function signOut() {
     toast.error("Couldn't sign out. Please try again.");
     return;
   }
+  $roomSessions.clear();
   await navigateTo("/");
 }
 </script>

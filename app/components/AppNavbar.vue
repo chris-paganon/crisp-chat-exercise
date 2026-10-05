@@ -4,6 +4,7 @@ import logoSquare from "@/assets/images/logo-square.png";
 import { authClient } from "@/lib/auth-client";
 
 const { data: session } = await authClient.useSession(useFetch);
+const { $roomSessions } = useNuxtApp();
 
 const currentUser = computed(() => session.value?.user ?? null);
 const userInitial = computed(() => {
@@ -13,7 +14,10 @@ const userInitial = computed(() => {
 });
 
 async function logout() {
-  await authClient.signOut();
+  const result = await authClient.signOut();
+  if (result.error) return;
+
+  $roomSessions.clear();
   await navigateTo("/auth");
 }
 </script>

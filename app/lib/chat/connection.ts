@@ -1,12 +1,14 @@
 import { toast } from "vue-sonner";
+import { ref } from "vue";
 import { ConnectionUnavailableError } from "@/lib/chat-error";
 import type { ChatClientEvent, ChatServerEvent } from "~~/shared/types/chat";
 
-export type ChatConnection = ReturnType<typeof useChatConnection>;
+export type ChatConnection = ReturnType<typeof createChatConnection>;
 
 /** One room socket, shared by text messages and file-transfer signaling. */
-export function useChatConnection(roomId: string) {
+export function createChatConnection(roomId: string) {
   const userId = ref("");
+  const sessionEnded = ref(false);
   const connection = ref<"connecting" | "connected" | "reconnecting" | "closed">("connecting");
   const errorToastId = `chat-error:${roomId}`;
   const listeners = new Set<(event: ChatServerEvent) => void>();
@@ -19,18 +21,27 @@ export function useChatConnection(roomId: string) {
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let pongTimer: ReturnType<typeof setTimeout> | undefined;
 
-  onMounted(connect);
-  onBeforeUnmount(() => {
-    disposed = true;
-    toast.dismiss(errorToastId);
+  function close() {
+    const current = socket;
+    socket = undefined;
+    if (!stopped) {
+      toast.dismiss(errorToastId);
+    }
     clearTimeout(reconnectTimer);
     clearConnectionTimers();
-    socket?.close(1000, "Conversation closed.");
+    current?.close(1000, "Conversation closed.");
+    attempts = 0;
+    connection.value = "closed";
+  }
+
+  function dispose() {
+    disposed = true;
+    close();
     listeners.clear();
-  });
+  }
 
   function connect() {
-    if (disposed || stopped) {
+    if (disposed || stopped || socket) {
       return;
     }
 
@@ -84,6 +95,7 @@ export function useChatConnection(roomId: string) {
         if (!event.id || event.fatal) toast.error(event.message, { id: errorToastId });
         if (event.fatal) {
           stopped = true;
+          sessionEnded.value = true;
           current.close();
         }
       }
@@ -112,6 +124,7 @@ export function useChatConnection(roomId: string) {
         duration: Infinity,
       });
       stopped = true;
+      sessionEnded.value = true;
     }
 
     if (stopped) {
@@ -119,9 +132,10 @@ export function useChatConnection(roomId: string) {
       return;
     }
 
-    connection.value = "reconnecting";
     const delay = Math.min(1000 * 2 ** attempts++, 15000);
     reconnectTimer = setTimeout(connect, delay);
+    // A hidden room may close itself synchronously when its transfer fails.
+    connection.value = "reconnecting";
   }
 
   function clearConnectionTimers() {
@@ -143,5 +157,5 @@ export function useChatConnection(roomId: string) {
     return () => listeners.delete(listener);
   }
 
-  return { userId, connection, transmit, onEvent };
+  return { userId, sessionEnded, connection, transmit, onEvent, connect, close, dispose };
 }

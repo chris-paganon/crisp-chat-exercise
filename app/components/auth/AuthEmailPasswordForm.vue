@@ -9,6 +9,7 @@ import { getAuthRedirect } from "@/lib/auth-redirect";
 
 const mode = useRouteQuery<"sign-in" | "sign-up">("mode", "sign-in");
 const route = useRoute();
+const { $roomSessions } = useNuxtApp();
 const redirectPath = computed(() => getAuthRedirect(route.query.redirect));
 const { data: authProviders } = await useFetch("/api/auth-providers");
 
@@ -105,6 +106,8 @@ const onSubmit = form.handleSubmit(async (values) => {
     toast.error(response.error.message || "Authentication failed. Please try again.");
     return;
   }
+
+  $roomSessions.clear();
 
   if (isSignUp.value) {
     verificationEmail.value = values.email;

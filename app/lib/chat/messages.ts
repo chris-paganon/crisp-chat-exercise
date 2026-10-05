@@ -1,4 +1,5 @@
-import type { ChatConnection } from "./useChatConnection";
+import { ref, watch } from "vue";
+import type { ChatConnection } from "./connection";
 import type { ChatMessage } from "~~/shared/types/chat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
 
@@ -7,8 +8,8 @@ interface DisplayMessage extends ChatMessage {
   error?: string;
 }
 
-export function useChatMessages(roomId: string, chat: ChatConnection) {
-  const messages = useState<DisplayMessage[]>(`chat-messages:${roomId}`, () => []);
+export function createChatMessages(roomId: string, chat: ChatConnection) {
+  const messages = ref<DisplayMessage[]>([]);
   const { userId, connection } = chat;
   // Client IDs correlate optimistic messages with persisted acknowledgements.
   const acknowledgements = new Map<string, ReturnType<typeof setTimeout>>();
@@ -19,20 +20,21 @@ export function useChatMessages(roomId: string, chat: ChatConnection) {
     if (event.type === "error" && event.id) fail(event.id, event.message);
   });
 
-  watch(connection, (state) => {
+  const stopWatching = watch(connection, (state) => {
     if (state !== "connected") {
       for (const id of acknowledgements.keys()) {
         fail(id, "Connection lost. Try again once connected.");
       }
     }
-  });
+  }, { flush: "sync" });
 
-  onBeforeUnmount(() => {
+  function dispose() {
     unsubscribe();
+    stopWatching();
     for (const id of acknowledgements.keys()) {
       fail(id, "Send interrupted. Please try again.");
     }
-  });
+  }
 
   function merge(record: ChatMessage) {
     if (record.roomId !== roomId) {
@@ -132,5 +134,5 @@ export function useChatMessages(roomId: string, chat: ChatConnection) {
     }
   }
 
-  return { messages, send, retry };
+  return { messages, send, retry, dispose };
 }
