@@ -31,8 +31,8 @@ export function useChatMessages(roomId: string) {
     clearTimeout(reconnectTimer);
     clearConnectionTimers();
 
-    for (const clientId of acknowledgements.keys()) {
-      fail(clientId, "Send interrupted. Please try again.");
+    for (const id of acknowledgements.keys()) {
+      fail(id, "Send interrupted. Please try again.");
     }
 
     socket?.close(1000, "Conversation closed.");
@@ -103,11 +103,11 @@ export function useChatMessages(roomId: string) {
           clearTimeout(pongTimer);
           break;
         case "error": {
-          if (event.clientId) {
-            fail(event.clientId, event.message);
+          if (event.id) {
+            fail(event.id, event.message);
           }
 
-          if (!event.clientId || event.fatal) {
+          if (!event.id || event.fatal) {
             toast.error(event.message, {
               id: errorToastId,
             });
@@ -135,8 +135,8 @@ export function useChatMessages(roomId: string) {
     socket = undefined;
     clearConnectionTimers();
 
-    for (const clientId of acknowledgements.keys()) {
-      fail(clientId, "Connection lost. Try again once connected.");
+    for (const id of acknowledgements.keys()) {
+      fail(id, "Connection lost. Try again once connected.");
     }
 
     if (!stopped && event.code === 1008) {
@@ -164,12 +164,11 @@ export function useChatMessages(roomId: string) {
     }
 
     if (record.senderId === userId.value) {
-      clearTimeout(acknowledgements.get(record.clientId));
-      acknowledgements.delete(record.clientId);
+      clearTimeout(acknowledgements.get(record.id));
+      acknowledgements.delete(record.id);
     }
 
-    const index = messages.value.findIndex(item => item.id === record.id
-      || (item.clientId === record.clientId && item.senderId === record.senderId));
+    const index = messages.value.findIndex(item => item.id === record.id);
     const item: DisplayMessage = { ...record, status: "sent" };
 
     if (index === -1) {
@@ -180,25 +179,25 @@ export function useChatMessages(roomId: string) {
     }
   }
 
-  function fail(clientId: string, reason: string) {
-    clearTimeout(acknowledgements.get(clientId));
-    acknowledgements.delete(clientId);
+  function fail(id: string, reason: string) {
+    clearTimeout(acknowledgements.get(id));
+    acknowledgements.delete(id);
 
-    updateMessageStatus(clientId, "failed", reason);
+    updateMessageStatus(id, "failed", reason);
   }
 
-  function updateMessageStatus(clientId: string, status: "sending" | "failed", error?: string) {
-    const index = messages.value.findIndex(item => item.senderId === userId.value && item.clientId === clientId);
+  function updateMessageStatus(id: string, status: "sending" | "failed", error?: string) {
+    const index = messages.value.findIndex(item => item.senderId === userId.value && item.id === id);
     const item = messages.value[index];
     if (item && item.status !== "sent") {
       messages.value[index] = { ...item, status, error };
     }
   }
 
-  function waitForAcknowledgement(clientId: string) {
-    clearTimeout(acknowledgements.get(clientId));
-    acknowledgements.set(clientId, setTimeout(() => {
-      fail(clientId, "No confirmation received. Try again.");
+  function waitForAcknowledgement(id: string) {
+    clearTimeout(acknowledgements.get(id));
+    acknowledgements.set(id, setTimeout(() => {
+      fail(id, "No confirmation received. Try again.");
     }, 10000));
   }
 
@@ -216,10 +215,9 @@ export function useChatMessages(roomId: string) {
       return false;
     }
 
-    const clientId = crypto.randomUUID();
+    const id = crypto.randomUUID();
     const item: DisplayMessage = {
-      id: clientId,
-      clientId,
+      id,
       roomId,
       senderId: userId.value,
       body: text,
@@ -228,33 +226,33 @@ export function useChatMessages(roomId: string) {
     };
     messages.value.push(item);
 
-    waitForAcknowledgement(clientId);
+    waitForAcknowledgement(id);
     if (!sendItem(item)) {
-      fail(clientId, "Connection lost. Please try again.");
+      fail(id, "Connection lost. Please try again.");
     }
     return true;
   }
 
-  function retry(clientId: string) {
+  function retry(id: string) {
     if (connection.value !== "connected") {
       return;
     }
 
-    const item = messages.value.find(item => item.senderId === userId.value && item.clientId === clientId);
+    const item = messages.value.find(item => item.senderId === userId.value && item.id === id);
     if (item?.status === "failed") {
-      updateMessageStatus(clientId, "sending");
-      waitForAcknowledgement(clientId);
+      updateMessageStatus(id, "sending");
+      waitForAcknowledgement(id);
       if (!sendItem(item)) {
-        fail(clientId, "Connection lost. Please try again.");
+        fail(id, "Connection lost. Please try again.");
       }
     }
   }
 
-  function sendItem(item: Readonly<Pick<ChatMessage, "clientId" | "body">>) {
+  function sendItem(item: Readonly<Pick<ChatMessage, "id" | "body">>) {
     try {
       transmit({
         type: "message",
-        clientId: item.clientId,
+        id: item.id,
         body: item.body,
       });
       return true;

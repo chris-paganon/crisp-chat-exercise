@@ -1,11 +1,12 @@
 # Chat room setup
 
-This phase implements visitor-created rooms and operator claiming. Text/WebSocket messages and file transfers remain disabled.
+The chat supports visitor-created rooms, operator claiming, and saved text messages over WebSockets. File transfers remain disabled.
 
 ## Setup and use
 
 1. Configure `NUXT_DATABASE_URL`, `NUXT_BETTER_AUTH_SECRET`, and `NUXT_BETTER_AUTH_URL` using the existing template setup. The auth URL must match the browser origin, including the port, for room mutations.
 2. Run `pnpm db:migrate`. The new migrations allow an empty operator slot, enforce one room per visitor, remove the invitation table, and require a visitor. Legacy invitation-only rooms without visitors are removed; joined conversations retain their participants.
+   The message-ID migration removes the redundant `client_id` column and index while retaining existing message IDs, bodies, and timestamps. Reload open chat tabs after updating the WebSocket protocol.
 3. Open `/` as a visitor and open the support widget. It creates a BetterAuth anonymous session if needed and creates or restores that visitor's room.
 4. In a separate browser profile, sign in or create an operator account and open `/operator`. Unclaimed rooms and your claimed rooms appear in the inbox. Opening an unclaimed room joins you as its operator.
 
@@ -14,11 +15,11 @@ Closing/reopening the widget or reloading the homepage keeps the same room while
 ## Data and access
 
 - `chat_room`: a required, unique visitor slot and an optional operator slot; participants must be different users.
-- `chat_message`: text body, sender, room, creation/read timestamps, and a unique client ID per room/sender for future retry deduplication. No message write endpoint exists yet; future message writes must validate room membership.
+- `chat_message`: a client-generated UUID primary key, text body, sender, room, and creation/read timestamps. The same UUID identifies the pending UI message, saved record, acknowledgement, and retries. Duplicate sends return the saved record only when its room and sender match the connection.
 
 Registered users are operators; anonymous users are visitors. Visitor room creation is idempotent, including concurrent requests. Operators see unclaimed rooms and their own claimed rooms. Claiming locks the room inside a transaction, so only one operator can take it. Reopening by that operator is idempotent. Room detail reads require membership, and another operator cannot read or claim an already-claimed room.
 
-The dashboard refreshes the room list every five seconds. The open visitor widget refreshes its room membership every five seconds, showing the operator's name after claiming. These indicate membership, not live connectivity. No WebSocket messaging is implemented.
+The dashboard refreshes the room list every five seconds. The open visitor widget refreshes its room membership every five seconds, showing the operator's name after claiming. These indicate membership, not live connectivity. Each open conversation connects to `/api/chat?room=<id>` for history and live messages. The server verifies session and room membership and saves messages before acknowledging and broadcasting them. Failed sends can be retried with the same message ID; reconnecting reloads history and merges messages by ID.
 
 ## Validation
 

@@ -82,7 +82,7 @@ async function sendMessage(body: string) {
       </div>
       <article
         v-for="item in sortedMessages"
-        :key="`${item.senderId}:${item.clientId}`"
+        :key="item.id"
         class="mb-4.5 flex flex-col"
         :class="item.senderId === userId ? 'items-end' : 'items-start'"
       >
@@ -101,7 +101,7 @@ async function sendMessage(body: string) {
             class="font-medium text-primary underline outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground"
             type="button"
             :disabled="connection !== 'connected'"
-            @click="retry(item.clientId)"
+            @click="retry(item.id)"
           >
             Retry
           </button>

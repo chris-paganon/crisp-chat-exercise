@@ -11,7 +11,7 @@ const clientEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ping") }),
   z.object({
     type: z.literal("message"),
-    clientId: z.string().uuid(),
+    id: z.string().uuid(),
     body: z.string().trim().min(1).max(MAX_CHAT_MESSAGE_LENGTH),
   }),
 ]);
@@ -20,7 +20,6 @@ const messageFields = {
   id: message.id,
   roomId: message.roomId,
   senderId: message.senderId,
-  clientId: message.clientId,
   body: message.body,
   createdAt: message.createdAt,
 };
@@ -71,7 +70,7 @@ export default defineWebSocketHandler({
   },
 
   async message(peer, incoming) {
-    let clientId: string | undefined;
+    let id: string | undefined;
 
     try {
       // Allow escaped JSON and multi-byte text, while bounding incoming payloads.
@@ -82,14 +81,14 @@ export default defineWebSocketHandler({
       const raw = incoming.json();
       const parsed = clientEventSchema.safeParse(raw);
 
-      if (raw && typeof raw === "object" && "clientId" in raw && typeof raw.clientId === "string") {
-        clientId = z.string().uuid().safeParse(raw.clientId).success ? raw.clientId : undefined;
+      if (raw && typeof raw === "object" && "id" in raw && typeof raw.id === "string") {
+        id = z.string().uuid().safeParse(raw.id).success ? raw.id : undefined;
       }
 
       if (!parsed.success) {
         peer.send({
           type: "error",
-          clientId,
+          id,
           message: "Enter a message of 1–10,000 characters.",
         } satisfies ChatServerEvent);
         return;
@@ -120,13 +119,12 @@ export default defineWebSocketHandler({
       const db = getDb();
       const [inserted] = await db.insert(message)
         .values({
-          id: crypto.randomUUID(),
+          id: parsed.data.id,
           roomId,
           senderId: userId,
-          clientId: parsed.data.clientId,
           body: parsed.data.body,
         })
-        .onConflictDoNothing({ target: [message.roomId, message.senderId, message.clientId] })
+        .onConflictDoNothing({ target: message.id })
         .returning(messageFields);
 
       // A retry returns the original persisted message, even if the acknowledgement was lost.
@@ -135,7 +133,7 @@ export default defineWebSocketHandler({
         .where(and(
           eq(message.roomId, roomId),
           eq(message.senderId, userId),
-          eq(message.clientId, parsed.data.clientId),
+          eq(message.id, parsed.data.id),
         )))[0];
 
       if (!record) {
@@ -152,7 +150,7 @@ export default defineWebSocketHandler({
       console.error("Failed to process chat message.", error);
       peer.send({
         type: "error",
-        clientId,
+        id,
         message: "Message couldn't be sent. Please try again.",
       } satisfies ChatServerEvent);
     }

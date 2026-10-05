@@ -11,17 +11,16 @@ export interface ChatMessage {
   id: string;
   roomId: string;
   senderId: string;
-  clientId: string;
   body: string;
   createdAt: Date;
 }
 
 export type ChatClientEvent
-  = | { type: "message"; clientId: string; body: string }
+  = | { type: "message"; id: string; body: string }
     | { type: "ping" };
 
 export type ChatServerEvent
   = | { type: "ready"; userId: string; messages: ChatMessage[] }
     | { type: "message"; message: ChatMessage }
-    | { type: "error"; message: string; clientId?: string; fatal?: boolean }
+    | { type: "error"; message: string; id?: string; fatal?: boolean }
     | { type: "pong" };

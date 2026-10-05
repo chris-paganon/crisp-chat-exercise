@@ -15,17 +15,15 @@ export const room = pgTable("chat_room", {
   check("chat_room_distinct_participants", sql`${table.operatorId} <> ${table.visitorId}`),
 ]);
 
-// The client ID makes retrying an unacknowledged message idempotent.
+// The client-generated primary key makes message retries idempotent.
 export const message = pgTable("chat_message", {
   id: text("id").primaryKey(),
   roomId: text("room_id").notNull().references(() => room.id, { onDelete: "cascade" }),
   senderId: text("sender_id").notNull().references(() => user.id, { onDelete: "restrict" }),
-  clientId: text("client_id").notNull(),
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   readAt: timestamp("read_at", { withTimezone: true }),
 }, table => [
   index("chat_message_history_idx").on(table.roomId, table.createdAt),
-  uniqueIndex("chat_message_client_idx").on(table.roomId, table.senderId, table.clientId),
   check("chat_message_body_length", sql`char_length(${table.body}) BETWEEN 1 AND 10000`),
 ]);
