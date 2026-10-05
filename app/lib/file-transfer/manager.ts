@@ -503,9 +503,10 @@ export function createTransferManager(options: ManagerOptions) {
 
     const resource = resourceFor(id);
     try {
-      const file = resource.file ?? await getLocalFile(key(id), item.fingerprint ?? "", item.size);
+      const file = await getLocalFile(key(id), item.fingerprint ?? "", item.size);
       if (!file) {
-        update(item, { available: false, message: "The local file is no longer available in this browser." });
+        await inspectLocal(item);
+        update(item, { available: false, message: "The local file expired or is no longer available in this browser." });
         return;
       }
       await touchLocalFile(key(id));
