@@ -15,6 +15,13 @@
       "when": 1791130516223,
       "tag": "0001_abandoned_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791183590239,
+      "tag": "0002_abandoned_jasper_sitwell",
+      "breakpoints": true
     }
   ]
 }

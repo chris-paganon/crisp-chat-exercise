@@ -6,12 +6,12 @@ import { user } from "./auth";
 export const room = pgTable("chat_room", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
-  operatorId: text("operator_id").notNull().references(() => user.id, { onDelete: "restrict" }),
+  operatorId: text("operator_id").references(() => user.id, { onDelete: "restrict" }),
   visitorId: text("visitor_id").references(() => user.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, table => [
   index("chat_room_operator_idx").on(table.operatorId),
-  index("chat_room_visitor_idx").on(table.visitorId),
+  uniqueIndex("chat_room_visitor_idx").on(table.visitorId),
   check("chat_room_distinct_participants", sql`${table.operatorId} <> ${table.visitorId}`),
 ]);
 
