@@ -25,24 +25,29 @@ export function createTransferManager(options: ManagerOptions) {
   const transfers = new Map<string, TransferView>();
   const resources = new Map<string, TransferResources>();
   let disposed = false;
+
+  // Updates a shallow clone of all the TransferViews for the UI
   const publish = () => options.changed([...transfers.values()].map(item => ({ ...item })));
 
   function update(item: TransferView, patch: Partial<TransferView>) {
     Object.assign(item, patch);
     publish();
   }
+
   function notify(event: FileClientEvent) {
     try {
       options.send(event);
     }
     catch { /* Local failure/cleanup must still work when the socket is unavailable. */ }
   }
+
   function finish(item: TransferView, status: FileEndStatus, message?: string) {
     const resource = resources.get(item.id)!;
     clearTimeout(resource.timer);
     resource.session?.close();
     resource.session = undefined;
     resource.source = undefined;
+
     if (status !== "completed") {
       resource.file = undefined;
       void resource.sink?.abort();
@@ -50,12 +55,15 @@ export function createTransferManager(options: ManagerOptions) {
     }
     update(item, { status, message });
   }
+
   function fail(item: TransferView, error: unknown) {
     if (!isTransferActive(item)) return;
+
     const message = asTransferError(error).message.slice(0, 500);
     notify({ type: "file-fail", id: item.id, message });
     finish(item, "failed", message);
   }
+
   function start(item: TransferView) {
     const resource = resources.get(item.id)!;
     clearTimeout(resource.timer);
@@ -185,6 +193,7 @@ export function createTransferManager(options: ManagerOptions) {
     notify({ type: decline ? "file-decline" : "file-cancel", id });
     finish(item, decline ? "declined" : "cancelled");
   }
+
   function download(id: string) {
     const item = transfers.get(id);
     const resource = resources.get(id);
@@ -192,6 +201,7 @@ export function createTransferManager(options: ManagerOptions) {
       resource.downloads.push(createFileDownload(resource.file, item.name));
     }
   }
+
   function remove(id: string) {
     const item = transfers.get(id);
     if (!item || isTransferActive(item)) return;
@@ -202,6 +212,7 @@ export function createTransferManager(options: ManagerOptions) {
     transfers.delete(id);
     publish();
   }
+
   function disconnect() {
     for (const item of transfers.values()) {
       if (isTransferActive(item)) {
@@ -210,6 +221,7 @@ export function createTransferManager(options: ManagerOptions) {
       }
     }
   }
+
   function dispose() {
     for (const item of transfers.values()) {
       if (isTransferActive(item)) stop(item.id);
