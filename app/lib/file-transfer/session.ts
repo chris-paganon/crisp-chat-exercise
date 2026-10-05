@@ -29,73 +29,22 @@ interface ReceiveSessionOptions extends SessionOptions {
   complete: (file: File) => void;
 }
 
-interface TransferCallbacks {
-  progress: (bytes: number) => void;
-  markDelivered: () => void;
-  fail: (error: unknown) => void;
-}
-
-interface ChannelTransfer {
-  receiveFileChannelMessage: (data: unknown) => void;
-  onOpen?: () => Promise<void>;
-  stop: () => void;
-}
-
-interface ConnectionOptions extends SessionOptions {
-  sender: boolean;
-  createTransfer: (channel: RTCDataChannel, callbacks: TransferCallbacks) => ChannelTransfer;
-}
-
 export function createSendSession(options: SendSessionOptions) {
-  const connection = createSessionConnection({
-    ...options,
-    sender: true,
-    createTransfer(channel, callbacks) {
-      const sender = createFileSender(channel, options.source, callbacks.progress, () => {
-        callbacks.markDelivered();
-        options.sent();
-      });
-      return {
-        receiveFileChannelMessage: sender.receiveFileChannelMessage,
-        onOpen: sender.start,
-        stop: sender.stop,
-      };
-    },
-  });
-
-  return {
-    start: connection.startNegotiation,
-    receiveSignal: connection.receiveSignal,
-    close: connection.close,
-  };
+  return createSession(options);
 }
 
 export function createReceiveSession(options: ReceiveSessionOptions): TransferSession {
-  const connection = createSessionConnection({
-    ...options,
-    sender: false,
-    createTransfer(channel, callbacks) {
-      return createFileReceiver(channel, options.size, options.sink, callbacks.progress, (file) => {
-        if (file.size !== options.size) throw new Error("Received file size does not match the offer.");
-        callbacks.markDelivered();
-        options.complete(file);
-      }, callbacks.fail);
-    },
-  });
-
+  const { receiveSignal, close } = createSession(options);
   // Receiving begins with the remote offer; no local negotiation needs starting.
-  return {
-    receiveSignal: connection.receiveSignal,
-    close: connection.close,
-  };
+  return { receiveSignal, close };
 }
 
-/** Shared peer/channel lifecycle; file protocol handling belongs to each session. */
-function createSessionConnection(options: ConnectionOptions) {
+/** Shared peer/channel lifecycle with the two file transfer implementations. */
+function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
   let stopped = false;
-  let delivered = false;
+  let awaitingCompletion = false;
   let channel: RTCDataChannel | undefined;
-  let transfer: ChannelTransfer | undefined;
+  let stopTransfer: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout>;
 
   function fail(error: unknown) {
@@ -113,13 +62,13 @@ function createSessionConnection(options: ConnectionOptions) {
 
   const peer = createFilePeer({
     id: options.id,
-    sender: options.sender,
+    sender: "source" in options,
     signal: options.signal,
     fail,
     connectionLost(state) {
       // After end is sent, the receiver can close before file-ended arrives.
       // The activity timer still bounds our wait for the server result.
-      if (!delivered || state === "failed") fail(new Error("Peer connection lost. Send the file again once connected."));
+      if (!awaitingCompletion || state === "failed") fail(new Error("Peer connection lost. Send the file again once connected."));
     },
     channel: channelHandler,
   });
@@ -135,21 +84,33 @@ function createSessionConnection(options: ConnectionOptions) {
     channel = current;
     current.binaryType = "arraybuffer";
 
-    transfer = options.createTransfer(current, {
-      progress,
-      markDelivered() {
-        delivered = true;
-        activity();
-      },
-      fail,
-    });
-    const currentTransfer = transfer;
+    function awaitCompletion() {
+      awaitingCompletion = true;
+      activity();
+    }
+    let transfer: ReturnType<typeof createFileSender> | ReturnType<typeof createFileReceiver>;
+    let startTransfer: (() => Promise<void>) | undefined;
+    if ("source" in options) {
+      const sender = createFileSender(current, options.source, progress, () => {
+        awaitCompletion();
+        options.sent();
+      });
+      transfer = sender;
+      startTransfer = sender.start;
+    }
+    else {
+      transfer = createFileReceiver(current, options.size, options.sink, progress, (file) => {
+        awaitCompletion();
+        options.complete(file);
+      }, fail);
+    }
+    stopTransfer = transfer.stop;
 
     current.onmessage = ({ data }) => {
       try {
-        if (stopped || delivered) return;
+        if (stopped || awaitingCompletion) return;
 
-        currentTransfer.receiveFileChannelMessage(data);
+        transfer.receiveFileChannelMessage(data);
       }
       catch (error) {
         fail(error);
@@ -163,7 +124,7 @@ function createSessionConnection(options: ConnectionOptions) {
       opened = true;
       activity();
       options.connected();
-      void currentTransfer.onOpen?.().catch(fail);
+      void startTransfer?.().catch(fail);
     };
 
     if (current.readyState === "open") {
@@ -174,17 +135,17 @@ function createSessionConnection(options: ConnectionOptions) {
       fail(new Error("File data channel failed."));
     };
     current.onclose = () => {
-      if (!delivered) fail(new Error("File data channel closed before completion."));
+      if (!awaitingCompletion) fail(new Error("File data channel closed before completion."));
     };
   }
 
   return {
-    startNegotiation: () => { void peer.start().catch(fail); },
+    start: () => { void peer.start().catch(fail); },
     receiveSignal: peer.receiveSignal,
     close() {
       stopped = true;
       clearTimeout(timer);
-      transfer?.stop();
+      stopTransfer?.();
       channel?.close();
       peer.close();
     },
