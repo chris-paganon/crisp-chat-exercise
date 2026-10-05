@@ -6,6 +6,7 @@ interface PeerOptions {
   signal: (signal: FileSignal) => void;
   channel: (channel: RTCDataChannel) => void;
   fail: (error: Error) => void;
+  connectionLost: (state: RTCPeerConnectionState) => void;
 }
 
 export function createFilePeer(options: PeerOptions) {
@@ -31,7 +32,7 @@ export function createFilePeer(options: PeerOptions) {
   };
   peer.onconnectionstatechange = () => {
     if (!stopped && ["failed", "disconnected", "closed"].includes(peer.connectionState)) {
-      options.fail(new Error("Peer connection lost. Send the file again once connected."));
+      options.connectionLost(peer.connectionState);
     }
   };
   peer.ondatachannel = ({ channel }) => {
@@ -44,11 +45,15 @@ export function createFilePeer(options: PeerOptions) {
 
   async function start() {
     if (!options.sender) return;
+
     options.channel(peer.createDataChannel(`file:${options.id}`, { ordered: true }));
     const offer = await peer.createOffer();
     if (stopped) return;
+
     await peer.setLocalDescription(offer);
-    if (!stopped) options.signal({ description: { type: "offer", sdp: peer.localDescription!.sdp } });
+    if (!stopped) {
+      options.signal({ description: { type: "offer", sdp: peer.localDescription!.sdp } });
+    }
   }
 
   function receiveSignal(signal: FileSignal) {
@@ -61,9 +66,14 @@ export function createFilePeer(options: PeerOptions) {
         else throw new Error("Too many connection candidates.");
         return;
       }
-      if (peer.remoteDescription) throw new Error("Unexpected connection renegotiation.");
+
+      if (peer.remoteDescription) {
+        throw new Error("Unexpected connection renegotiation.");
+      }
+
       await peer.setRemoteDescription(signal.description);
       if (stopped) return;
+
       for (const candidate of candidates.splice(0)) await peer.addIceCandidate(candidate ?? undefined);
       if (!options.sender) {
         await peer.setLocalDescription(await peer.createAnswer());
