@@ -110,7 +110,8 @@ export default defineWebSocketHandler({
       if (!record) throw new Error("Message was not saved.");
       const event = { type: "message", message: serializeMessage(record) } satisfies ChatServerEvent;
       peer.send(event);
-      peer.publish(`room:${roomId}`, event);
+      // CrossWS's Node adapter treats published objects as binary frames.
+      peer.publish(`room:${roomId}`, JSON.stringify(event));
     }
     catch (error) {
       console.error("Failed to process chat message.", error);
