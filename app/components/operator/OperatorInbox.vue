@@ -11,11 +11,19 @@ const { data: rooms, error: loadError, status, refresh } = useOperatorRooms();
 const selectedId = useRouteQuery<string>("room", "");
 const busy = ref(false);
 
+// Refresh the inbox for newly opened or claimed visitor rooms.
+const { pause, resume } = useIntervalFn(() => {
+  void refresh();
+}, 5000, { immediate: false });
+
 onMounted(() => {
+  resume();
+
   if (selectedId.value) {
     void selectRoom(selectedId.value);
   }
 });
+onBeforeUnmount(pause);
 
 async function selectRoom(id: string) {
   if (busy.value) return;
