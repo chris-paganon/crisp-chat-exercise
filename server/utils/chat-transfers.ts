@@ -95,9 +95,6 @@ async function startQueued(roomId: string) {
   const roomTransfers = [...transfers.values()].filter(item => item.record.roomId === roomId);
   let running = roomTransfers.filter(item => item.attempt).length;
   for (const current of roomTransfers) {
-    if (running >= MAX_CONCURRENT_TRANSFERS) {
-      break;
-    }
     if (current.attempt || !current.sender || !current.receiver || current.record.status === "offered") {
       continue;
     }
@@ -105,7 +102,13 @@ async function startQueued(roomId: string) {
       continue;
     }
 
+    // Both ends are ready: queueing behind a large file must not expire this transfer.
     clearTimeout(current.timer);
+    current.timer = undefined;
+    if (running >= MAX_CONCURRENT_TRANSFERS) {
+      continue;
+    }
+
     current.record = await updateFileRecord(roomId, current.record.id, "accepted");
     current.attempt = crypto.randomUUID();
     broadcastFileRecord(current.record);
