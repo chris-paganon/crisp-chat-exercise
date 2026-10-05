@@ -22,6 +22,12 @@ export function useChatMessages(roomId: string) {
   let connectionTimer: ReturnType<typeof setTimeout> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let pongTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   *  Aknowledgments manage optimistic updates, retries and failures.
+   *  When a message is sent, it is added to the acknowledgements map with a timeout.
+   *  When the message is received by the server, the timeout is cleared in merge()
+   */
   const acknowledgements = new Map<string, ReturnType<typeof setTimeout>>();
 
   onMounted(connect);
