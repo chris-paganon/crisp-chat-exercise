@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { LoaderCircle, MessageSquare, RotateCcw, X } from "lucide-vue-next";
+import { toast } from "vue-sonner";
 import type { ChatRoom } from "~~/shared/types/chat";
 import { authClient } from "@/lib/auth-client";
 import { chatError } from "@/lib/chat-error";
@@ -7,19 +8,17 @@ import ChatConversation from "@/components/chat/ChatConversation.vue";
 
 const open = ref(false);
 const joining = ref(false);
-const error = ref("");
 const room = ref<ChatRoom | null>(null);
 
 async function openConversation() {
   if (joining.value) return;
   joining.value = true;
-  error.value = "";
   try {
     const session = await authClient.getSession();
     if (session.error) throw new Error("Unable to check your session.");
     if (session.data && !session.data.user.isAnonymous) {
       room.value = null;
-      error.value = "You're signed in as an operator. Open this website in a private window to chat as a visitor.";
+      toast.error("You're signed in as an operator. Open this website in a private window to chat as a visitor.");
       return;
     }
     if (!session.data) {
@@ -29,7 +28,8 @@ async function openConversation() {
     room.value = await $fetch<ChatRoom>("/api/rooms", { method: "POST" });
   }
   catch (cause) {
-    error.value = chatError(cause, "We couldn't open your conversation. Please try again.");
+    room.value = null;
+    toast.error(chatError(cause, "We couldn't open your conversation. Please try again."));
   }
   finally {
     joining.value = false;
@@ -42,7 +42,7 @@ watch(open, (isOpen) => {
 
 // Keep the operator's name current after they claim this room.
 useIntervalFn(async () => {
-  if (!open.value || !room.value || joining.value || error.value) return;
+  if (!open.value || !room.value || joining.value) return;
   try {
     room.value = await $fetch<ChatRoom>(`/api/rooms/${room.value.id}`);
   }
@@ -90,7 +90,7 @@ useIntervalFn(async () => {
           </UiButton>
         </header>
         <ChatConversation
-          v-if="room && !joining && !error"
+          v-if="room && !joining"
           :key="room.id"
           :room-id="room.id"
           :peer-name="room.operatorName ?? 'Support team'"
@@ -114,7 +114,7 @@ useIntervalFn(async () => {
             </UiEmptyHeader>
           </UiEmpty>
           <UiEmpty
-            v-else-if="error"
+            v-else
             class="min-h-55 gap-4 px-3 py-5 md:p-5"
           >
             <div class="grid size-14 place-items-center rounded-lg border bg-accent text-primary">
@@ -124,7 +124,7 @@ useIntervalFn(async () => {
               <h3 class="text-sm font-medium">
                 We couldn't connect you
               </h3><UiEmptyDescription class="max-w-68 text-xs">
-                {{ error }}
+                Please try again to open your conversation.
               </UiEmptyDescription>
             </UiEmptyHeader>
             <UiButton
@@ -136,26 +136,6 @@ useIntervalFn(async () => {
               <RotateCcw class="size-4" /> Try again
             </UiButton>
           </UiEmpty>
-          <template v-else>
-            <div class="w-fit max-w-[95%] rounded-lg rounded-tl-sm bg-muted px-3.5 py-2.5 text-sm/relaxed">
-              Hello there 👋<br>How can we help you today?
-            </div>
-            <p class="mx-1 mt-2 text-xs text-muted-foreground">
-              The Crisp team
-            </p>
-            <UiEmpty class="min-h-55 gap-4 px-3 pt-8 pb-5 md:px-3 md:pt-8 md:pb-5">
-              <div class="grid size-14 place-items-center rounded-lg border bg-accent text-primary">
-                <MessageSquare class="size-7" />
-              </div>
-              <UiEmptyHeader>
-                <h3 class="text-sm font-medium">
-                  Good conversations start here.
-                </h3><UiEmptyDescription class="max-w-68 text-xs">
-                  Opening this chat starts your private conversation with our support team.
-                </UiEmptyDescription>
-              </UiEmptyHeader>
-            </UiEmpty>
-          </template>
         </div>
         <footer class="flex shrink-0 items-center justify-center gap-2.5 px-2.5 pt-2 pb-3">
           <ChatCrispLogo class="gap-1 text-sm [&_svg]:size-3.5" /><span class="text-[0.625rem] text-muted-foreground">We run on conversations.</span>
