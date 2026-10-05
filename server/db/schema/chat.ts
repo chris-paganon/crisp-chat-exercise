@@ -7,24 +7,12 @@ export const room = pgTable("chat_room", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   operatorId: text("operator_id").references(() => user.id, { onDelete: "restrict" }),
-  visitorId: text("visitor_id").references(() => user.id, { onDelete: "restrict" }),
+  visitorId: text("visitor_id").notNull().references(() => user.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, table => [
   index("chat_room_operator_idx").on(table.operatorId),
   uniqueIndex("chat_room_visitor_idx").on(table.visitorId),
   check("chat_room_distinct_participants", sql`${table.operatorId} <> ${table.visitorId}`),
-]);
-
-export const invite = pgTable("chat_invite", {
-  id: text("id").primaryKey(),
-  roomId: text("room_id").notNull().references(() => room.id, { onDelete: "cascade" }),
-  tokenHash: text("token_hash").notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, table => [
-  uniqueIndex("chat_invite_room_idx").on(table.roomId),
-  uniqueIndex("chat_invite_token_idx").on(table.tokenHash),
 ]);
 
 // Text history is ready for the next phase; no message write endpoint exists yet.

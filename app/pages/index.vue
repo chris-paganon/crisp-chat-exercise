@@ -6,10 +6,7 @@ import HomeComparison from "@/components/home/HomeComparison.vue";
 import { authClient } from "@/lib/auth-client";
 
 definePageMeta({ layout: false });
-useHead({ meta: [{ name: "referrer", content: "no-referrer" }] });
 
-const route = useRoute();
-const token = computed(() => typeof route.query.invite === "string" ? route.query.invite : undefined);
 const { data: session } = await authClient.useSession(useFetch);
 const isOperator = computed(() => Boolean(session.value && !session.value.user.isAnonymous));
 
@@ -40,6 +37,6 @@ useSeoMeta({
       <HomeReady />
     </main>
     <HomeFooter />
-    <ChatVisitorWidget :token="token" />
+    <ChatVisitorWidget />
   </div>
 </template>

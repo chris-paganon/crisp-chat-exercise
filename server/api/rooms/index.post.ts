@@ -1,23 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { getDb } from "#server/db";
-import { invite, room } from "#server/db/schema";
-import { getRoomSummary, newInvite, requireChatOrigin, requireOperator } from "#server/utils/chat";
-
-const bodySchema = z.object({ title: z.string().trim().min(1).max(100) });
+import { room } from "#server/db/schema";
+import { getRoomSummary, requireChatOrigin } from "#server/utils/chat";
+import { requireUser } from "#server/utils/require-user";
 
 export default defineEventHandler(async (event) => {
   requireChatOrigin(event);
-  const operator = await requireOperator(event);
-  const result = bodySchema.safeParse(await readBody(event));
-  if (!result.success) {
-    throw createError({ statusCode: 400, statusMessage: "Enter a room name of 1–100 characters." });
+  const visitor = await requireUser(event);
+  if (!visitor.isAnonymous) {
+    throw createError({ statusCode: 403, statusMessage: "Only visitors can start a conversation." });
   }
-  const id = randomUUID();
-  const invitation = newInvite(id);
-  await getDb().transaction(async (tx) => {
-    await tx.insert(room).values({ id, title: result.data.title, operatorId: operator.id });
-    await tx.insert(invite).values(invitation.values);
-  });
-  return { room: await getRoomSummary(id), invite: invitation.link };
+  const db = getDb();
+  // The unique visitor slot also makes retries and concurrent opens idempotent.
+  await db.insert(room).values({ id: randomUUID(), title: "Support conversation", visitorId: visitor.id })
+    .onConflictDoNothing({ target: room.visitorId });
+  const [record] = await db.select({ id: room.id }).from(room).where(eq(room.visitorId, visitor.id));
+  return getRoomSummary(record!.id);
 });

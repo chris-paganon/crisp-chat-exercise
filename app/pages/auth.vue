@@ -23,7 +23,7 @@ useSeoMeta({
             A human connection starts with you.
           </h1>
           <p class="max-w-lg text-base leading-7 text-muted-foreground">
-            Sign in or create an operator account to start conversations and invite your visitors. Visitors join through a private link, with no signup needed.
+            Sign in or create an operator account to help visitors. Open an unclaimed conversation in your inbox to join it.
           </p>
         </div>
       </div>

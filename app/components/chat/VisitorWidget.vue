@@ -5,61 +5,51 @@ import { authClient } from "@/lib/auth-client";
 import { chatError } from "@/lib/chat-error";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 
-const props = defineProps<{ token?: string }>();
-const open = ref(Boolean(props.token));
+const open = ref(false);
 const joining = ref(false);
 const error = ref("");
 const room = ref<ChatRoom | null>(null);
-let attempt = 0;
 
-async function joinInvite() {
-  const token = props.token;
-  if (!token || joining.value) return;
-  const currentAttempt = ++attempt;
+async function openConversation() {
+  if (joining.value) return;
   joining.value = true;
   error.value = "";
-  room.value = null;
   try {
-    // Validate the link before creating a guest account.
-    const preview = await $fetch<{ room: ChatRoom; joined: boolean }>(`/api/invites/${encodeURIComponent(token)}`);
     const session = await authClient.getSession();
     if (session.error) throw new Error("Unable to check your session.");
     if (session.data && !session.data.user.isAnonymous) {
-      error.value = "You're signed in as an operator. Open this invite in a private window to join as a visitor.";
+      room.value = null;
+      error.value = "You're signed in as an operator. Open this website in a private window to chat as a visitor.";
       return;
     }
     if (!session.data) {
       const guest = await authClient.signIn.anonymous();
       if (guest.error) throw new Error("Unable to create your visitor session.");
     }
-    const joinedRoom = preview.joined
-      ? preview.room
-      : await $fetch<ChatRoom>(`/api/invites/${encodeURIComponent(token)}/join`, { method: "POST" });
-    if (currentAttempt === attempt) room.value = joinedRoom;
+    room.value = await $fetch<ChatRoom>("/api/rooms", { method: "POST" });
   }
   catch (cause) {
-    if (currentAttempt === attempt) {
-      error.value = chatError(cause, "We couldn't join this conversation. Please try again.");
-    }
+    error.value = chatError(cause, "We couldn't open your conversation. Please try again.");
   }
   finally {
     joining.value = false;
-    if (props.token && props.token !== token) void joinInvite();
   }
 }
 
-onMounted(() => {
-  void joinInvite();
+watch(open, (isOpen) => {
+  if (isOpen) void openConversation();
 });
-watch(() => props.token, () => {
-  attempt++;
-  room.value = null;
-  error.value = "";
-  if (props.token) {
-    open.value = true;
-    void joinInvite();
+
+// Refresh membership only; messaging is not implemented yet.
+useIntervalFn(async () => {
+  if (!open.value || !room.value || joining.value || error.value) return;
+  try {
+    room.value = await $fetch<ChatRoom>(`/api/rooms/${room.value.id}`);
   }
-});
+  catch (cause) {
+    error.value = chatError(cause, "We couldn't refresh your conversation. Please try again.");
+  }
+}, 5000);
 </script>
 
 <template>
@@ -76,7 +66,7 @@ watch(() => props.token, () => {
             <ChatCrispLogo compact />
           </div>
           <div class="visitor-heading">
-            <h2>{{ room ? `Chat with ${room.operatorName}` : "Questions? Chat with us." }}</h2>
+            <h2>{{ room?.operatorName ? `Chat with ${room.operatorName}` : "Questions? Chat with us." }}</h2>
             <p>{{ room ? "Your personal conversation" : "A little help goes a long way" }}</p>
           </div>
           <button
@@ -99,7 +89,7 @@ watch(() => props.token, () => {
             <LoaderCircle
               class="chat-spinner"
               :size="30"
-            /><h3>Joining your conversation</h3><p>Getting everything ready for you…</p>
+            /><h3>Opening your conversation</h3><p>Getting everything ready for you…</p>
           </div>
           <div
             v-else-if="error"
@@ -111,20 +101,20 @@ watch(() => props.token, () => {
             <button
               type="button"
               class="chat-button chat-button-secondary"
-              @click="joinInvite"
+              @click="openConversation"
             >
               <RotateCcw :size="16" /> Try again
             </button>
           </div>
           <template v-else-if="room">
             <div class="widget-joined-label">
-              <Check :size="13" /> You've joined the conversation
+              <Check :size="13" /> Your conversation is ready
             </div>
             <div class="widget-greeting">
               Hi there 👋<br>Welcome! You're in the right place.
             </div>
             <p class="widget-greeting-caption">
-              {{ room.operatorName }} · Your support operator
+              {{ room.operatorName ? `${room.operatorName} · Your support operator` : "Waiting for a support operator" }}
             </p>
             <div class="widget-room-card">
               <span class="chat-eyebrow">YOUR CONVERSATION</span><h3>{{ room.title }}</h3><p>Your room is ready. You'll be able to exchange messages here soon.</p>
@@ -139,7 +129,7 @@ watch(() => props.token, () => {
             <div class="widget-empty-state widget-welcome">
               <div class="widget-state-icon">
                 <MessageSquare :size="27" />
-              </div><h3>Good conversations start here.</h3><p>Have an invitation? Open the link your support operator shared to join your private conversation.</p>
+              </div><h3>Good conversations start here.</h3><p>Opening this chat starts your private conversation with our support team.</p>
             </div>
           </template>
         </div>
