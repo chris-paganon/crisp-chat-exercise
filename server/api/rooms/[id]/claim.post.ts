@@ -6,7 +6,9 @@ import { getRoomSummary, requireOperator } from "#server/utils/chat";
 export default defineEventHandler(async (event) => {
   const operator = await requireOperator(event);
   const id = getRouterParam(event, "id") ?? "";
-  await getDb().transaction(async (tx) => {
+  const db = getDb();
+
+  await db.transaction(async (tx) => {
     const [record] = await tx.select().from(room).where(eq(room.id, id)).for("update");
     if (!record) {
       throw createError({ statusCode: 404, statusMessage: "Room not found." });
@@ -18,5 +20,6 @@ export default defineEventHandler(async (event) => {
       await tx.update(room).set({ operatorId: operator.id }).where(eq(room.id, id));
     }
   });
+
   return getRoomSummary(id);
 });
