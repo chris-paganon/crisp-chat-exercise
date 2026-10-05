@@ -32,12 +32,7 @@ export async function getRoomSummary(roomId: string) {
   if (!record) {
     throw createError({ statusCode: 404, statusMessage: "Room not found." });
   }
-  return {
-    id: record.id,
-    title: record.title,
-    createdAt: record.createdAt.toISOString(),
-    operatorName: record.operatorName,
-  };
+  return record;
 }
 
 export async function requireRoomMember(event: H3Event) {
