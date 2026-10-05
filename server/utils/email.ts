@@ -56,7 +56,7 @@ export async function sendAuthEmail(options: SendAuthEmailOptions) {
                 <h1 style="margin:0 0 16px;font-size:24px;line-height:1.3;">${options.title}</h1>
                 <p style="margin:0 0 12px;font-size:16px;line-height:1.6;">${greeting}</p>
                 <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">${options.body}</p>
-                <a href="${options.actionUrl}" style="display:inline-block;background:#171717;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:6px;font-size:15px;font-weight:600;">${options.actionLabel}</a>
+                <a href="${options.actionUrl}" style="display:inline-block;background:#1972f5;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:6px;font-size:15px;font-weight:600;">${options.actionLabel}</a>
                 <p style="margin:28px 0 0;color:#737373;font-size:13px;line-height:1.5;">If you did not request this, you can ignore this email.</p>
               </td>
             </tr>

@@ -9,6 +9,10 @@ definePageMeta({ layout: false, middleware: "operator" });
 useSeoMeta({ title: "Inbox | Crisp" });
 const { data: session } = await authClient.useSession(useFetch);
 const { data: rooms, error: loadError, status, refresh } = await useFetch<ChatRoom[]>("/api/rooms", { default: () => [] });
+const hasLoadedRooms = ref(status.value === "success");
+watch(status, (value) => {
+  if (value === "success") hasLoadedRooms.value = true;
+});
 const selectedId = useRouteQuery<string>("room", "");
 const selected = computed(() => rooms.value.find(room => room.id === selectedId.value && room.operatorName));
 const search = ref("");
@@ -137,7 +141,7 @@ function dateLabel(value: string) {
         </button>
       </div>
       <div
-        v-else-if="status === 'pending' && !rooms.length"
+        v-else-if="status === 'pending' && !hasLoadedRooms"
         class="room-list-empty"
       >
         <LoaderCircle
