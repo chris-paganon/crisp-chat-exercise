@@ -28,7 +28,7 @@ export function createRoomSessions(options: RoomSessionsOptions = {}) {
         if (views.value || suspended) return;
 
         for (const item of items) {
-          if ((item.status === "completed" || item.status === "failed")
+          if ((item.status === "completed" || item.status === "failed" || item.status === "interrupted")
             && previous.find(old => old.id === item.id)?.status !== item.status) {
             options.notify?.(item);
           }
