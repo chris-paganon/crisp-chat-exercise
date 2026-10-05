@@ -298,6 +298,7 @@ export function createTransferManager(options: ManagerOptions) {
         if (completed && item.persistedStatus !== "offered") {
           resource.file = completed;
           item.available = true;
+          update(item, { status: "finishing", available: true, hasLocalFile: true });
           send({ type: "file-finish", id });
           return;
         }
@@ -325,7 +326,12 @@ export function createTransferManager(options: ManagerOptions) {
       if (resource.generation === generation && !isFileTerminal(item.status)) fail(item, error);
     }
     finally {
-      if (resource.generation === generation) resource.preparing = false;
+      if (resource.generation === generation) {
+        resource.preparing = false;
+        if (!resource.ready && item.status === "preparing") {
+          update(item, { status: item.persistedStatus === "offered" ? "offered" : "interrupted" });
+        }
+      }
     }
   }
 

@@ -85,31 +85,36 @@ export default defineWebSocketHandler({
       const roomId = peer.context.roomId as string;
       const userId = peer.context.userId as string;
 
-      // Recheck the cookie session and membership, including on heartbeat, after expiry/sign-out.
-      const session = await auth.api.getSession({ headers: peer.request.headers });
-      if (session?.user.id !== userId) {
-        peer.send({
-          type: "error",
-          message: "Your session ended. Reload to sign in again.",
-          fatal: true,
-        } satisfies ChatServerEvent);
-        peer.close(1008, "Session ended.");
-        return;
+      async function validateMembership() {
+        // Recheck the cookie session and membership, including after expiry/sign-out.
+        const session = await auth.api.getSession({ headers: peer.request.headers });
+        if (session?.user.id !== userId) {
+          peer.send({
+            type: "error",
+            message: "Your session ended. Reload to sign in again.",
+            fatal: true,
+          } satisfies ChatServerEvent);
+          peer.close(1008, "Session ended.");
+          return false;
+        }
+
+        await requireRoomMemberById(roomId, userId);
+        return true;
       }
 
-      await requireRoomMemberById(roomId, userId);
-
-      if (parsed.data.type === "ping") {
-        peer.send({ type: "pong" } satisfies ChatServerEvent);
-        return;
-      }
-
-      if (parsed.data.type !== "message") {
+      if (parsed.data.type !== "message" && parsed.data.type !== "ping") {
+        // Enqueue before any async auth reads so socket events retain arrival order.
         await serializeFileOperation(roomId, async () => {
-          if (!peer.context.transferClosed) {
+          if (!peer.context.transferClosed && await validateMembership()) {
             await coordinateFileTransfer(peer, parsed.data as FileClientEvent);
           }
         });
+        return;
+      }
+      if (!await validateMembership()) return;
+
+      if (parsed.data.type === "ping") {
+        peer.send({ type: "pong" } satisfies ChatServerEvent);
         return;
       }
 
