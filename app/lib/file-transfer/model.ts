@@ -9,6 +9,7 @@ export interface TransferView extends FileOffer {
   message?: string;
   version?: number;
   available?: boolean;
+  controlPending?: boolean;
   localBytes?: number;
   needsSource?: boolean;
   persistedStatus?: FileLifecycle;

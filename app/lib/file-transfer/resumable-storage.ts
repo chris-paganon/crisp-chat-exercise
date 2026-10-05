@@ -69,6 +69,7 @@ export async function openResumableFileSink(key: LocalTransferKey, size: number,
   }
   let sequence = 0;
   let closed = false;
+  let finishing: Promise<File> | undefined;
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
   function shutdown(error = new Error("File writer is closed.")) {
     closed = true;
@@ -110,6 +111,10 @@ export async function openResumableFileSink(key: LocalTransferKey, size: number,
   try {
     const offset = await call<number>({ type: "open", key, size, fingerprint });
     const pause = async () => {
+      if (finishing) {
+        await finishing.catch(() => {});
+        return;
+      }
       if (closed) return;
 
       try {
@@ -126,13 +131,9 @@ export async function openResumableFileSink(key: LocalTransferKey, size: number,
         reservations.set(name, size - bytes);
       },
       checkpoint: () => call<number>({ type: "checkpoint" }),
-      async finish() {
-        try {
-          return await call<File>({ type: "finish" });
-        }
-        finally {
-          shutdown();
-        }
+      finish() {
+        finishing ??= call<File>({ type: "finish" }).finally(() => shutdown());
+        return finishing;
       },
       pause,
       async abort() {

@@ -19,6 +19,8 @@ const incoming = computed(() => props.transfer.direction === "incoming");
 const percentage = computed(() => transferPercentage(props.transfer));
 const showProgress = computed(() => ["transferring", "finishing", "completed", "interrupted"].includes(props.transfer.status));
 const label = computed(() => {
+  if (props.transfer.controlPending) return "Confirming cancellation…";
+
   switch (props.transfer.status) {
     case "verifying": return "Verifying the source file…";
     case "waiting": return "Waiting for the other participant or a free transfer slot…";

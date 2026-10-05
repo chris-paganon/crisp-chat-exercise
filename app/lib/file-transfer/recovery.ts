@@ -20,9 +20,13 @@ let database: Promise<IDBDatabase> | undefined;
 
 function openDatabase() {
   database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open("crisp-file-transfers", 1);
+    const request = indexedDB.open("crisp-file-transfers", 2);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore("checkpoints", { keyPath: "key" });
+      for (const name of ["checkpoints", "commands"]) {
+        if (!request.result.objectStoreNames.contains(name)) {
+          request.result.createObjectStore(name, { keyPath: "key" });
+        }
+      }
     };
     request.onsuccess = () => {
       const db = request.result;
@@ -36,16 +40,19 @@ function openDatabase() {
       database = undefined;
       reject(request.error ?? new Error("Cannot open transfer checkpoints."));
     };
-    request.onblocked = () => reject(new Error("Close other tabs to update transfer storage."));
+    request.onblocked = () => {
+      database = undefined;
+      reject(new Error("Close other tabs to update transfer storage."));
+    };
   });
   return database;
 }
 
-async function transaction<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function transaction<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>, storeName = "checkpoints"): Promise<T> {
   const db = await openDatabase();
   return new Promise<T>((resolve, reject) => {
-    const tx = db.transaction("checkpoints", mode, { durability: "strict" });
-    const request = work(tx.objectStore("checkpoints"));
+    const tx = db.transaction(storeName, mode, { durability: "strict" });
+    const request = work(tx.objectStore(storeName));
     // Request success alone does not mean the transaction has committed.
     tx.oncomplete = () => resolve(request.result);
     tx.onabort = () => reject(tx.error ?? request.error ?? new Error("Cannot save transfer checkpoint."));
@@ -63,4 +70,19 @@ export async function saveCheckpoint(record: TransferCheckpoint) {
 
 export async function deleteCheckpoint(key: LocalTransferKey) {
   await transaction("readwrite", store => store.delete(localTransferKey(key)));
+}
+
+export type LocalControl = "file-cancel" | "file-decline";
+
+export async function readLocalControl(key: LocalTransferKey): Promise<LocalControl | undefined> {
+  const record = await transaction<{ key: string; command: LocalControl } | undefined>("readonly", store => store.get(localTransferKey(key)), "commands");
+  return record?.command;
+}
+
+export async function saveLocalControl(key: LocalTransferKey, command: LocalControl) {
+  await transaction("readwrite", store => store.put({ key: localTransferKey(key), command }), "commands");
+}
+
+export async function deleteLocalControl(key: LocalTransferKey) {
+  await transaction("readwrite", store => store.delete(localTransferKey(key)), "commands");
 }

@@ -8,7 +8,7 @@ import { asTransferError } from "./rtc-peer";
 import { createReceiveSession, createSendSession } from "./session";
 import { createFileDownload } from "./storage";
 import { fingerprintFile } from "./fingerprint";
-import { readCheckpoint } from "./recovery";
+import { readCheckpoint, readLocalControl, saveLocalControl, deleteLocalControl } from "./recovery";
 import { getLocalFile, openResumableFileSink, removeLocalFile } from "./resumable-storage";
 
 interface TransferResources {
@@ -22,6 +22,7 @@ interface TransferResources {
   generation: number;
   closing: Promise<void>;
   pendingControl?: "file-cancel" | "file-decline";
+  controlSaving?: Promise<void>;
   mobileConsent?: boolean;
   downloads: (() => void)[];
   lastProgressAt?: number;
@@ -99,7 +100,9 @@ export function createTransferManager(options: ManagerOptions) {
     closeResources(item);
     resource.source = undefined;
     resource.pendingControl = undefined;
+    void clearControl(item);
     update(item, {
+      controlPending: false,
       status: record.status as TransferView["status"], message: record.message ?? undefined,
       bytes: record.status === "completed" ? record.size : item.bytes, needsSource: false,
     });
@@ -159,7 +162,10 @@ export function createTransferManager(options: ManagerOptions) {
     item.version = record.version;
     item.persistedStatus = record.status;
     item.fingerprint = record.fingerprint;
-    if (resource.pendingControl && !isFileTerminal(record.status)) return;
+    if (resource.pendingControl && !isFileTerminal(record.status)) {
+      update(item, { status: resource.pendingControl === "file-cancel" ? "cancelled" : "declined", controlPending: true });
+      return;
+    }
 
     if (isFileTerminal(record.status)) {
       finish(item, record);
@@ -222,6 +228,7 @@ export function createTransferManager(options: ManagerOptions) {
     publish();
     resource.source = file;
     resource.preparing = true;
+    const generation = resource.generation;
     try {
       if (!await verifySource(item, file, resource)) return;
       resource.preparing = false;
@@ -230,8 +237,10 @@ export function createTransferManager(options: ManagerOptions) {
       if (!resource.ready) interrupt(item, "Reconnect to send this file offer.", false);
     }
     catch (error) {
-      resource.preparing = false;
-      if (!isFileTerminal(item.status)) fail(item, error);
+      if (resource.generation === generation) {
+        resource.preparing = false;
+        if (!isFileTerminal(item.status)) fail(item, error);
+      }
     }
   }
 
@@ -371,9 +380,11 @@ export function createTransferManager(options: ManagerOptions) {
       return;
     }
     const item = transfers.get(event.id);
-    if (!item || isFileTerminal(item.status)) return;
+    if (!item) return;
 
     const resource = resourceFor(item.id);
+    if (isFileTerminal(item.status) && !resource.pendingControl) return;
+
     switch (event.type) {
       case "file-start":
         start(item, event);
@@ -388,16 +399,56 @@ export function createTransferManager(options: ManagerOptions) {
         if (resource.ready) update(item, { status: "waiting" });
         break;
       case "file-error":
+        if (resource.pendingControl) {
+          resource.pendingControl = undefined;
+          void clearControl(item);
+          update(item, { status: item.persistedStatus === "offered" ? "offered" : "interrupted", controlPending: false, message: event.message });
+          break;
+        }
         if (!event.attempt || event.attempt === resource.attempt) interrupt(item, event.message, false);
         break;
     }
+  }
+
+  async function clearControl(item: TransferView) {
+    const resource = resourceFor(item.id);
+    await resource.controlSaving;
+    try {
+      await deleteLocalControl(key(item.id));
+    }
+    catch (error) {
+      if (!disposed) update(item, { message: asTransferError(error).message });
+    }
+  }
+
+  async function hydrate(records: FileRecord[]) {
+    for (const record of records) {
+      if (disposed) return;
+
+      try {
+        const command = await readLocalControl(key(record.id));
+        resourceFor(record.id).pendingControl = isFileTerminal(record.status) ? undefined : command;
+        if (command && isFileTerminal(record.status)) {
+          await deleteLocalControl(key(record.id));
+        }
+      }
+      catch {
+        // DB history remains readable if local browser storage is unavailable.
+      }
+      if (disposed) return;
+
+      restore(record);
+    }
+    connected();
   }
 
   function connected() {
     for (const item of transfers.values()) {
       const resource = resourceFor(item.id);
       if (resource.pendingControl) {
-        send({ type: resource.pendingControl, id: item.id });
+        void (resource.controlSaving ?? Promise.resolve()).then(() => {
+          if (resource.pendingControl) send({ type: resource.pendingControl, id: item.id });
+        });
       }
       else if (!isFileTerminal(item.status)) {
         void resume(item.id, undefined, true);
@@ -416,8 +467,13 @@ export function createTransferManager(options: ManagerOptions) {
     resource.pendingControl = type;
     closeResources(item);
     resource.source = undefined;
-    update(item, { status: type === "file-cancel" ? "cancelled" : "declined", needsSource: false });
-    send({ type, id });
+    update(item, { status: type === "file-cancel" ? "cancelled" : "declined", needsSource: false, controlPending: true });
+    resource.controlSaving = saveLocalControl(key(id), type).catch((error) => {
+      update(item, { message: `Cannot save pending cancellation: ${asTransferError(error).message}` });
+    });
+    void resource.controlSaving.then(() => {
+      if (resource.pendingControl === type) send({ type, id });
+    });
     if (item.direction === "incoming") void remove(id);
   }
 
@@ -472,5 +528,5 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
-  return { restore, connected, offer, accept: resume, resume, receiveServerEvent, stop, download, remove, disconnect, dispose };
+  return { hydrate, restore, connected, offer, accept: resume, resume, receiveServerEvent, stop, download, remove, disconnect, dispose };
 }

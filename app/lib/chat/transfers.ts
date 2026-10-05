@@ -7,7 +7,7 @@ import { createTransferManager } from "@/lib/file-transfer/manager";
 
 export function createFileTransfers(roomId: string, chat: ChatConnection) {
   const transfers = ref<TransferView[]>([]);
-  const busy = computed(() => transfers.value.some(item => !isFileTerminal(item.status)));
+  const busy = computed(() => transfers.value.some(item => !isFileTerminal(item.status) || item.controlPending));
 
   const manager = createTransferManager({
     roomId,
@@ -18,8 +18,7 @@ export function createFileTransfers(roomId: string, chat: ChatConnection) {
   });
   const unsubscribe = chat.onEvent((event) => {
     if (event.type === "ready") {
-      event.files.forEach(manager.restore);
-      manager.connected();
+      void manager.hydrate(event.files);
     }
     if (event.type.startsWith("file-")) {
       manager.receiveServerEvent(event as FileServerEvent);
