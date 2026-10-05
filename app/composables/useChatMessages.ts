@@ -1,3 +1,4 @@
+import { toast } from "vue-sonner";
 import type { ChatClientEvent, ChatMessage, ChatServerEvent } from "~~/shared/types/chat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
 
@@ -11,7 +12,7 @@ export function useChatMessages(roomId: string) {
   const messages = useState<DisplayMessage[]>(`chat-messages:${roomId}`, () => []);
   const userId = ref("");
   const connection = ref<"connecting" | "connected" | "reconnecting" | "closed">("connecting");
-  const error = ref("");
+  const errorToastId = `chat-error:${roomId}`;
   let socket: WebSocket | undefined;
   let disposed = false;
   let stopped = false;
@@ -76,7 +77,7 @@ export function useChatMessages(roomId: string) {
           userId.value = event.userId;
           for (const record of event.messages) merge(record);
           connection.value = "connected";
-          error.value = "";
+          toast.dismiss(errorToastId);
           attempts = 0;
           clearTimeout(connectionTimer);
           clearInterval(heartbeat);
@@ -92,7 +93,9 @@ export function useChatMessages(roomId: string) {
         else if (event.type === "pong") clearTimeout(pongTimer);
         else if (event.type === "error") {
           if (event.clientId) fail(event.clientId, event.message);
-          else error.value = event.message;
+          if (!event.clientId || event.fatal) {
+            toast.error(event.message, { id: errorToastId, duration: event.fatal ? Infinity : undefined });
+          }
           if (event.fatal) {
             stopped = true;
             current.close();
@@ -100,7 +103,7 @@ export function useChatMessages(roomId: string) {
         }
       }
       catch {
-        error.value = "Couldn't read the conversation. Reconnecting…";
+        toast.error("Couldn't read the conversation. Reconnecting…", { id: errorToastId });
         current.close();
       }
     };
@@ -110,10 +113,12 @@ export function useChatMessages(roomId: string) {
       socket = undefined;
       clearConnectionTimers();
       for (const clientId of acknowledgements.keys()) fail(clientId, "Connection lost. Try again once connected.");
-      stopped ||= event.code === 1008;
+      if (!stopped && event.code === 1008) {
+        toast.error("Your session ended. Reload to sign in again.", { id: errorToastId, duration: Infinity });
+        stopped = true;
+      }
       if (stopped) {
         connection.value = "closed";
-        error.value ||= "Your session ended. Reload to sign in again.";
         return;
       }
       connection.value = "reconnecting";
@@ -161,11 +166,12 @@ export function useChatMessages(roomId: string) {
   onMounted(connect);
   onBeforeUnmount(() => {
     disposed = true;
+    toast.dismiss(errorToastId);
     clearTimeout(reconnectTimer);
     clearConnectionTimers();
     for (const clientId of acknowledgements.keys()) fail(clientId, "Send interrupted. Please try again.");
     socket?.close(1000, "Conversation closed.");
   });
 
-  return { messages, userId, connection, error, send, retry };
+  return { messages, userId, connection, send, retry };
 }

@@ -3,7 +3,7 @@ import { MessageSquare } from "lucide-vue-next";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 
 const props = defineProps<{ roomId: string; peerName: string }>();
-const { messages, userId, connection, error, send, retry } = useChatMessages(props.roomId);
+const { messages, userId, connection, send, retry } = useChatMessages(props.roomId);
 const draft = useState<string>(`chat-draft:${props.roomId}`, () => "");
 const messageList = ref<HTMLElement>();
 const sortedMessages = computed(() => [...messages.value].sort((a, b) =>
@@ -45,13 +45,6 @@ function timeLabel(value: string) {
       role="status"
     >
       {{ statusLabel }}
-    </p>
-    <p
-      v-if="error"
-      class="mx-4 mt-2.5 shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-      role="alert"
-    >
-      {{ error }}
     </p>
     <div
       ref="messageList"
