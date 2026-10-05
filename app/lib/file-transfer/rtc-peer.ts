@@ -13,7 +13,6 @@ export function createRTCPeer(options: RTCPeerOptions) {
   const RTCPeer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
   let stopped = false;
   const candidates: (RTCIceCandidateInit | null)[] = [];
-  let signaling = Promise.resolve();
 
   RTCPeer.onicecandidate = ({ candidate }) => {
     if (stopped) return;
@@ -56,14 +55,23 @@ export function createRTCPeer(options: RTCPeerOptions) {
     }
   }
 
+  // Setup a simple async queue. Each signal is processed in order.
+  let signaling = Promise.resolve();
   function receiveSignal(signal: FileSignal) {
     // Serialize descriptions and ICE; candidates may arrive before the remote description.
     signaling = signaling.then(async () => {
       if (stopped) return;
+
       if ("candidate" in signal) {
-        if (RTCPeer.remoteDescription) await RTCPeer.addIceCandidate(signal.candidate ?? undefined);
-        else if (candidates.length < 256) candidates.push(signal.candidate);
-        else throw new Error("Too many connection candidates.");
+        if (RTCPeer.remoteDescription) {
+          await RTCPeer.addIceCandidate(signal.candidate ?? undefined);
+        }
+        else if (candidates.length < 256) {
+          candidates.push(signal.candidate);
+        }
+        else {
+          throw new Error("Too many connection candidates.");
+        }
         return;
       }
 
@@ -74,7 +82,10 @@ export function createRTCPeer(options: RTCPeerOptions) {
       await RTCPeer.setRemoteDescription(signal.description);
       if (stopped) return;
 
-      for (const candidate of candidates.splice(0)) await RTCPeer.addIceCandidate(candidate ?? undefined);
+      for (const candidate of candidates.splice(0)) {
+        await RTCPeer.addIceCandidate(candidate ?? undefined);
+      }
+
       if (!options.sender) {
         await RTCPeer.setLocalDescription(await RTCPeer.createAnswer());
         if (!stopped) options.sendSignal({ description: { type: "answer", sdp: RTCPeer.localDescription!.sdp } });
