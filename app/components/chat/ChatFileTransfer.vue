@@ -67,7 +67,7 @@ function sizeLabel(bytes: number) {
         </p>
       </div>
       <UiButton
-        v-if="!active && incoming && (transfer.available || transfer.localBytes)"
+        v-if="!active && incoming && transfer.hasLocalFile"
         type="button"
         variant="ghost"
         size="icon-sm"
@@ -112,13 +112,20 @@ function sizeLabel(bytes: number) {
       v-if="incoming && transfer.status === 'completed' && transfer.available"
       class="mt-2 text-xs text-muted-foreground"
     >
-      This file is saved in this browser. Downloading keeps the local copy until you remove it.
+      This file is saved in this browser for seven days since its last download. Remove the local copy to free storage.
     </p>
     <p
       v-if="transfer.status === 'interrupted'"
       class="mt-2 text-xs text-muted-foreground"
     >
       Saved progress is kept in this browser. Both participants must be online to resume.
+    </p>
+    <p
+      v-if="transfer.expired"
+      class="mt-2 text-xs text-muted-foreground"
+    >
+      This local copy expired after seven days without transfer activity or a download.
+      Remove it to free storage{{ transfer.status === 'interrupted' ? ', or restart receiving' : '' }}.
     </p>
     <div class="mt-3 flex flex-wrap gap-2">
       <input
@@ -134,7 +141,7 @@ function sizeLabel(bytes: number) {
         size="sm"
         @click="transfer.needsSource ? sourceInput?.click() : emit('resume')"
       >
-        {{ transfer.needsSource ? 'Reselect original file' : 'Resume transfer' }}
+        {{ transfer.needsSource ? 'Reselect original file' : transfer.expired ? 'Restart receiving' : 'Resume transfer' }}
       </UiButton>
       <template v-if="incoming && transfer.status === 'offered'">
         <UiButton

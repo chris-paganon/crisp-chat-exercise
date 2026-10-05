@@ -11,6 +11,8 @@ export interface TransferView extends FileOffer {
   available?: boolean;
   controlPending?: boolean;
   localBytes?: number;
+  hasLocalFile?: boolean;
+  expired?: boolean;
   needsSource?: boolean;
   persistedStatus?: FileLifecycle;
 }

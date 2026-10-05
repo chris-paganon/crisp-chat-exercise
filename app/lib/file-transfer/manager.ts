@@ -8,8 +8,8 @@ import { asTransferError } from "./rtc-peer";
 import { createReceiveSession, createSendSession } from "./session";
 import { createFileDownload } from "./storage";
 import { fingerprintFile } from "./fingerprint";
-import { readCheckpoint, readLocalControl, saveLocalControl, deleteLocalControl } from "./recovery";
-import { getLocalFile, openResumableFileSink, removeLocalFile } from "./resumable-storage";
+import { readCheckpoint, isCheckpointExpired, readLocalControl, saveLocalControl, deleteLocalControl } from "./recovery";
+import { getLocalFile, openResumableFileSink, removeLocalFile, touchLocalFile } from "./resumable-storage";
 
 interface TransferResources {
   source?: File;
@@ -109,7 +109,7 @@ export function createTransferManager(options: ManagerOptions) {
     if (record.status !== "completed" && item.direction === "incoming" && hadLocalFile) {
       resource.file = undefined;
       void resource.closing.then(() => removeLocalFile(key(item.id))).then(() => {
-        update(item, { available: false, localBytes: 0 });
+        update(item, { available: false, localBytes: 0, hasLocalFile: false, expired: false });
       }).catch(error => update(item, { message: `Cannot remove local file: ${asTransferError(error).message}` }));
     }
   }
@@ -131,7 +131,8 @@ export function createTransferManager(options: ManagerOptions) {
 
       resource.file = file;
       update(item, {
-        localBytes: saved?.bytes ?? 0, available: Boolean(file),
+        localBytes: saved?.bytes ?? 0, available: Boolean(file), hasLocalFile: Boolean(saved),
+        expired: saved ? isCheckpointExpired(saved) : false,
         bytes: resource.session || item.status === "completed" ? item.bytes : saved?.bytes ?? item.bytes,
       });
       if (file && !isFileTerminal(item.status) && item.persistedStatus !== "offered" && options.connected()) {
@@ -263,7 +264,12 @@ export function createTransferManager(options: ManagerOptions) {
     const generation = resource.generation;
     update(item, { status: "preparing", message: undefined });
     try {
-      if (automatic && item.direction === "incoming" && !await readCheckpoint(key(id))) return;
+      const saved = item.direction === "incoming" ? await readCheckpoint(key(id)) : undefined;
+      if (automatic && item.direction === "incoming" && !saved) return;
+      if (automatic && saved && isCheckpointExpired(saved)) {
+        update(item, { status: "interrupted", expired: true, message: "The saved partial expired after seven days. Restart receiving to continue." });
+        return;
+      }
       if (!mobilePermission(resource)) return;
 
       await resource.closing;
@@ -281,6 +287,13 @@ export function createTransferManager(options: ManagerOptions) {
       else {
         if (!item.fingerprint) throw new Error("This older file offer cannot be resumed. Ask the sender to offer it again.");
 
+        if (saved && isCheckpointExpired(saved)) {
+          // Expiration reclaims data only on an explicit restart, never during history loading.
+          await removeLocalFile(key(id));
+          if (disposed || resource.generation !== generation) return;
+
+          update(item, { bytes: 0, localBytes: 0, hasLocalFile: false, expired: false });
+        }
         const completed = await getLocalFile(key(id), item.fingerprint, item.size);
         if (completed && item.persistedStatus !== "offered") {
           resource.file = completed;
@@ -296,6 +309,7 @@ export function createTransferManager(options: ManagerOptions) {
         resource.sink = sink;
         item.bytes = sink.offset;
         item.localBytes = sink.offset;
+        item.hasLocalFile = true;
         resource.ready = send({ type: item.persistedStatus === "offered" ? "file-accept" : "file-resume", id, offset: sink.offset });
       }
       if (disposed || resource.generation !== generation) return;
@@ -361,7 +375,7 @@ export function createTransferManager(options: ManagerOptions) {
           if (!current()) return;
 
           resource.file = file;
-          update(item, { status: "finishing", available: true, localBytes: item.size });
+          update(item, { status: "finishing", available: true, localBytes: item.size, hasLocalFile: true, expired: false });
           if (!send({ type: "file-finish", id: item.id, attempt: event.attempt })) {
             interrupt(item, "File received. Reconnect to confirm receipt.", false);
           }
@@ -488,6 +502,7 @@ export function createTransferManager(options: ManagerOptions) {
         update(item, { available: false, message: "The local file is no longer available in this browser." });
         return;
       }
+      await touchLocalFile(key(id));
       resource.downloads.push(createFileDownload(file, item.name));
     }
     catch (error) {
@@ -506,7 +521,7 @@ export function createTransferManager(options: ManagerOptions) {
       resource.downloads.forEach(revoke => revoke());
       resource.downloads = [];
       resource.file = undefined;
-      update(item, { available: false, localBytes: 0, bytes: item.status === "completed" ? item.size : 0, message: undefined });
+      update(item, { available: false, localBytes: 0, hasLocalFile: false, expired: false, bytes: item.status === "completed" ? item.size : 0, message: undefined });
     }
     catch (error) {
       update(item, { message: `Cannot remove local file: ${asTransferError(error).message}` });

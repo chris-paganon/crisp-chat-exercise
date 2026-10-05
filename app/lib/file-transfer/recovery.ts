@@ -13,6 +13,9 @@ export interface TransferCheckpoint extends LocalTransferKey {
   updatedAt: number;
 }
 
+export const LOCAL_FILE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const isCheckpointExpired = (record: TransferCheckpoint, now = Date.now()) => now - record.updatedAt > LOCAL_FILE_RETENTION_MS;
+
 export const localTransferKey = (key: LocalTransferKey) => JSON.stringify([key.userId, key.roomId, key.id]);
 // A flat filename cannot escape the OPFS transfer directory.
 export const localTransferName = (key: LocalTransferKey) => encodeURIComponent(localTransferKey(key));

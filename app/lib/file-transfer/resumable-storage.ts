@@ -1,7 +1,7 @@
 import type { FileSink } from "./storage";
 import type { LocalTransferKey } from "./recovery";
 import type { StorageCommand } from "./storage-worker";
-import { deleteCheckpoint, localTransferName, readCheckpoint } from "./recovery";
+import { deleteCheckpoint, localTransferName, readCheckpoint, isCheckpointExpired, saveCheckpoint } from "./recovery";
 
 export interface ResumableFileSink extends FileSink {
   offset: number;
@@ -15,7 +15,7 @@ let preparing = Promise.resolve();
 
 export async function getLocalFile(key: LocalTransferKey, fingerprint: string, size: number) {
   const saved = await readCheckpoint(key);
-  if (!saved?.completed || saved.fingerprint !== fingerprint || saved.bytes !== size) return;
+  if (!saved?.completed || isCheckpointExpired(saved) || saved.fingerprint !== fingerprint || saved.bytes !== size) return;
 
   try {
     const directory = await (await navigator.storage.getDirectory()).getDirectoryHandle("crisp-transfers");
@@ -24,6 +24,13 @@ export async function getLocalFile(key: LocalTransferKey, fingerprint: string, s
   }
   catch {
     return undefined;
+  }
+}
+
+export async function touchLocalFile(key: LocalTransferKey) {
+  const saved = await readCheckpoint(key);
+  if (saved) {
+    await saveCheckpoint({ ...saved, updatedAt: Date.now() });
   }
 }
 
