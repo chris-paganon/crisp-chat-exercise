@@ -59,7 +59,6 @@ export function createTransferSession(options: SessionOptions) {
       });
       else if (options.sink) receiver = createFileReceiver(current, options.size, options.sink, progress, (file) => {
         if (file.size !== options.size) throw new Error("Received file size does not match the offer.");
-        current.send(JSON.stringify({ type: "received" }));
         delivered = true;
         activity();
         options.complete(file);
@@ -72,12 +71,15 @@ export function createTransferSession(options: SessionOptions) {
           fail(error);
         }
       };
+      let opened = false;
       current.onopen = () => {
-        if (stopped) return;
+        if (stopped || opened) return;
+        opened = true;
         activity();
         options.connected();
         void sender?.start().catch(fail);
       };
+      if (current.readyState === "open") current.onopen(new Event("open"));
       current.onerror = () => {
         if (!delivered) fail(new Error("File data channel failed."));
       };

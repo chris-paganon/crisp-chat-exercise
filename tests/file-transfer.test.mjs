@@ -23,6 +23,7 @@ for (const size of [0, 19, BATCH_BYTES * 3 + 7]) {
     let pending = 0;
     let largestPending = 0;
     let senderProgress = 0;
+    let senderDelivered = false;
     let receiverProgress = 0;
     let receiver;
     let resolve;
@@ -39,7 +40,11 @@ for (const size of [0, 19, BATCH_BYTES * 3 + 7]) {
         }
         queueMicrotask(() => receiver.receive(data));
       },
-    }, source, (bytes) => { senderProgress = bytes; });
+    }, source, (bytes) => {
+      senderProgress = bytes;
+    }, () => {
+      senderDelivered = true;
+    });
     receiver = createFileReceiver({
       send: data => queueMicrotask(() => sender.receive(data)),
     }, size, {
@@ -56,6 +61,7 @@ for (const size of [0, 19, BATCH_BYTES * 3 + 7]) {
       const received = await finished;
       assert.deepEqual(await received.arrayBuffer(), await source.arrayBuffer());
       assert.equal(senderProgress, size);
+      assert.equal(senderDelivered, true);
       assert.equal(receiverProgress, size);
       assert.ok(largestPending <= BATCH_BYTES);
     }

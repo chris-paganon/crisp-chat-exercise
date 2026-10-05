@@ -14,6 +14,7 @@ export function createFileSender(channel: RTCDataChannel, file: File, progress: 
     if (typeof data !== "string") throw new Error("Unexpected file data at sender.");
     const control = readFileControl(data);
     if (control.type === "received" && endSent) {
+      channel.send(JSON.stringify({ type: "confirmed" }));
       complete();
       return;
     }

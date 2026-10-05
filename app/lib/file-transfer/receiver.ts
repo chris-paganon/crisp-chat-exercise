@@ -13,6 +13,7 @@ export function createFileReceiver(
   let pendingBytes = 0;
   let pendingMessages = 0;
   let ended = false;
+  let saved: File | undefined;
   let stopped = false;
   let writing = Promise.resolve();
 
@@ -27,7 +28,7 @@ export function createFileReceiver(
     pendingMessages++;
     writing = writing.then(async () => {
       if (stopped) return;
-      if (ended) throw new Error("File data received after completion.");
+      if (ended && data instanceof ArrayBuffer) throw new Error("File data received after completion.");
       if (data instanceof ArrayBuffer) {
         if (!bytes || written + bytes > size) throw new Error("Received file exceeds its advertised size.");
         await sink.write(data);
@@ -37,13 +38,25 @@ export function createFileReceiver(
       }
       else {
         const control = readFileControl(data as string);
-        if (control.type === "batch" && control.offset === written) {
+        if (control.type === "confirmed" && saved) {
+          const file = saved;
+          saved = undefined;
+          complete(file);
+        }
+        else if (ended) {
+          throw new Error("File data received after completion.");
+        }
+        else if (control.type === "batch" && control.offset === written) {
           channel.send(JSON.stringify({ type: "ack", offset: written }));
         }
         else if (control.type === "end" && written === size) {
           ended = true;
           const file = await sink.finish();
-          if (!stopped) complete(file);
+          if (stopped) return;
+          if (file.size !== size) throw new Error("Received file size does not match the offer.");
+          saved = file;
+          // Wait for the sender to confirm receipt before closing either peer.
+          channel.send(JSON.stringify({ type: "received" }));
         }
         else {
           throw new Error("Incomplete file or invalid transfer control message.");
