@@ -6,11 +6,11 @@ images:
 
 environments:
     staging:
-        host: crisp-staging.dockiy.com
+        host: crisp-staging.chrispaganon.com
         compose_file: docker-compose.dockiy.yml
         secrets_file: .enc.staging.env
     production:
-        host: crisp.dockiy.com
+        host: crisp.chrispaganon.com
         compose_file: docker-compose.dockiy.yml
         secrets_file: .enc.production.env
 
