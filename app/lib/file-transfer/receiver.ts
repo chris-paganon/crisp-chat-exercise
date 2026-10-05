@@ -18,20 +18,28 @@ export function createFileReceiver(
 
   function receiveFileChannelMessage(data: unknown) {
     if (stopped) return;
+
     const bytes = data instanceof ArrayBuffer ? data.byteLength : 0;
     if ((typeof data !== "string" && !(data instanceof ArrayBuffer))
       || bytes > CHUNK_BYTES || pendingBytes + bytes > BATCH_BYTES || pendingMessages >= 64) {
       throw new Error("Invalid or excessive incoming file data.");
     }
+
     pendingBytes += bytes;
     pendingMessages++;
+
+    // Keep an async queue of bytes to write. Each byte is processed in order.
     writing = writing.then(async () => {
       if (stopped) return;
-      if (ended && data instanceof ArrayBuffer) throw new Error("File data received after completion.");
+      if (ended && data instanceof ArrayBuffer) {
+        throw new Error("File data received after completion.");
+      }
+
       if (data instanceof ArrayBuffer) {
         if (!bytes || written + bytes > size) throw new Error("Received file exceeds its advertised size.");
         await sink.write(data);
         if (stopped) return;
+
         written += bytes;
         progress(written);
       }
@@ -47,6 +55,7 @@ export function createFileReceiver(
           ended = true;
           const file = await sink.finish();
           if (stopped) return;
+
           if (file.size !== size) throw new Error("Received file size does not match the offer.");
           complete(file);
         }

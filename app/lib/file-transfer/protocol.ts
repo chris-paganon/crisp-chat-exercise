@@ -8,9 +8,15 @@ export type FileControl
     | { type: "end" };
 
 export function readFileControl(data: string): FileControl {
-  if (data.length > 256) throw new Error("Invalid transfer control message.");
+  if (data.length > 256) {
+    throw new Error("Invalid transfer control message.");
+  }
+
   const value = JSON.parse(data);
-  if (value?.type === "end") return { type: value.type };
+  if (value?.type === "end") {
+    return { type: value.type };
+  }
+
   if ((value?.type === "batch" || value?.type === "ack") && Number.isSafeInteger(value.offset) && value.offset >= 0) {
     return { type: value.type, offset: value.offset };
   }
