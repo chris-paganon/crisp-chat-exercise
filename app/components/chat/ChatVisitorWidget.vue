@@ -9,6 +9,8 @@ import ChatConversation from "@/components/chat/ChatConversation.vue";
 const open = ref(false);
 const joining = ref(false);
 const room = ref<ChatRoom | null>(null);
+const transferSummaries = useRoomTransferSummaries();
+const transferSummary = computed(() => room.value ? transferSummaries.value.get(room.value.id) : undefined);
 
 async function openConversation() {
   if (joining.value) return;
@@ -153,15 +155,21 @@ useIntervalFn(async () => {
 
     <div
       v-if="!open"
-      class="absolute right-17 bottom-2.5 flex w-max items-center gap-2.5 rounded-md border bg-popover px-4 py-3 text-xs text-popover-foreground shadow-sm sm:right-19"
+      class="absolute right-17 bottom-2.5 flex w-max items-center gap-2.5 rounded-md border bg-popover px-4 py-3 text-xs shadow-sm sm:right-19"
+      :class="transferSummary?.failed ? 'text-destructive' : 'text-popover-foreground'"
     >
-      We're here to help <span>👋</span>
+      <template v-if="transferSummary">
+        {{ transferSummary.label }}
+      </template>
+      <template v-else>
+        We're here to help <span>👋</span>
+      </template>
     </div>
     <UiButton
       class="pointer-events-auto ml-auto size-14 rounded-full shadow-lg transition-transform hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none sm:size-15"
       size="icon-lg"
       type="button"
-      :aria-label="open ? 'Close chat' : 'Open support chat'"
+      :aria-label="open ? 'Close chat' : transferSummary ? `Open support chat: ${transferSummary.label}` : 'Open support chat'"
       :aria-expanded="open"
       aria-controls="visitor-conversation"
       @click="open = !open"

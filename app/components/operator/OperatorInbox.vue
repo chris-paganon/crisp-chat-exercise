@@ -4,9 +4,11 @@ import { toast } from "vue-sonner";
 import { chatError } from "@/lib/chat-error";
 import { dateLabel } from "@/lib/date";
 import type { ChatRoom } from "~~/shared/types/chat";
+import ChatTransferBadge from "@/components/chat/ChatTransferBadge.vue";
 
 const emit = defineEmits<{ open: []; claimError: [] }>();
 const { data: rooms, error: loadError, refresh } = useOperatorRooms();
+const transferSummaries = useRoomTransferSummaries();
 
 const selectedId = useRouteQuery<string>("room", "");
 const busy = ref(false);
@@ -119,6 +121,7 @@ async function selectRoom(id: string) {
         <span class="block min-w-0 flex-1">
           <span class="flex items-center gap-2"><strong class="truncate text-base font-medium">{{ room.title }}</strong><small class="ml-auto shrink-0 text-base text-muted-foreground">{{ dateLabel(room.createdAt) }}</small></span>
           <span class="mt-1.5 block truncate text-base text-muted-foreground">{{ room.operatorName ? 'Claimed by you' : 'Unclaimed · Open to join' }}</span>
+          <ChatTransferBadge :summary="transferSummaries.get(room.id)" />
         </span>
       </button>
     </div>

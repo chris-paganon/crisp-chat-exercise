@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import { Download, File, X } from "lucide-vue-next";
 import type { TransferView } from "@/lib/file-transfer/model";
-import { isTransferActive } from "@/lib/file-transfer/model";
+import { isTransferActive, transferPercentage } from "@/lib/file-transfer/model";
 
 const props = defineProps<{ transfer: TransferView }>();
 defineEmits<{ accept: []; decline: []; cancel: []; download: []; remove: [] }>();
 const active = computed(() => isTransferActive(props.transfer));
 const incoming = computed(() => props.transfer.direction === "incoming");
-const percentage = computed(() => props.transfer.size
-  ? Math.floor(props.transfer.bytes / props.transfer.size * 100)
-  : props.transfer.status === "completed" ? 100 : 0);
+const percentage = computed(() => transferPercentage(props.transfer));
 const showProgress = computed(() => ["transferring", "finishing", "completed"].includes(props.transfer.status));
 const label = computed(() => {
   switch (props.transfer.status) {
@@ -94,13 +92,13 @@ function sizeLabel(bytes: number) {
       v-if="active"
       class="mt-2 text-xs text-muted-foreground"
     >
-      Keep both conversations open until the transfer finishes.
+      Keep this page open until the transfer finishes. You can close the chat or switch conversations.
     </p>
     <p
       v-if="incoming && transfer.status === 'completed'"
       class="mt-2 text-xs text-muted-foreground"
     >
-      Download before leaving this conversation.
+      You can return to this conversation to download. Download before leaving this page.
     </p>
     <div class="mt-3 flex flex-wrap gap-2">
       <template v-if="incoming && transfer.status === 'offered'">

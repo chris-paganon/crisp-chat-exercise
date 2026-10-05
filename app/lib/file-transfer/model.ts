@@ -12,3 +12,52 @@ export interface TransferView extends FileOffer {
 export function isTransferActive(transfer: TransferView) {
   return !["completed", "declined", "cancelled", "failed"].includes(transfer.status);
 }
+
+export function transferPercentage(transfer: TransferView) {
+  return transfer.size
+    ? Math.min(100, Math.floor(transfer.bytes / transfer.size * 100))
+    : transfer.status === "completed" ? 100 : 0;
+}
+
+export interface TransferSummary {
+  label: string;
+  failed: boolean;
+}
+
+/** A compact status for the inbox and the closed visitor widget. */
+export function summarizeTransfers(transfers: TransferView[]): TransferSummary | undefined {
+  const active = transfers.find(isTransferActive);
+  if (active) {
+    let label: string;
+    switch (active.status) {
+      case "offering":
+        label = "Offering file…";
+        break;
+      case "offered":
+        label = active.direction === "incoming" ? "File offer waiting for you" : "Waiting for file acceptance…";
+        break;
+      case "preparing":
+        label = "Preparing file storage…";
+        break;
+      case "connecting":
+        label = "Connecting file transfer…";
+        break;
+      case "transferring":
+        label = `${active.direction === "incoming" ? "Receiving" : "Sending"} ${transferPercentage(active)}%`;
+        break;
+      default:
+        label = "Confirming receipt…";
+    }
+
+    return { label, failed: false };
+  }
+
+  const downloads = transfers.filter(item => item.direction === "incoming" && item.status === "completed");
+  if (downloads.length) {
+    return { label: downloads.length === 1 ? "File ready to download" : `${downloads.length} files ready to download`, failed: false };
+  }
+
+  if (transfers.at(-1)?.status === "failed") {
+    return { label: "File transfer failed", failed: true };
+  }
+}
