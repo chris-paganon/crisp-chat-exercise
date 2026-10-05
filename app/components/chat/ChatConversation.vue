@@ -8,14 +8,26 @@ const { messages, userId, connection, send, retry } = useChatMessages(props.room
 
 const draft = useState<string>(`chat-draft:${props.roomId}`, () => "");
 const messageList = ref<HTMLElement>();
-const sortedMessages = computed(() => [...messages.value].sort((a, b) =>
-  a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)));
-const statusLabel = computed(() => ({
-  connecting: "Connecting…",
-  connected: "Connected · Messages are saved",
-  reconnecting: "Connection lost · Reconnecting…",
-  closed: "Disconnected",
-})[connection.value]);
+
+const sortedMessages = computed(() => {
+  return [...messages.value].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+});
+
+const statusLabel = computed(() => {
+  switch (connection.value) {
+    case "connecting":
+      return "Connecting…";
+    case "connected":
+      return "Connected · Messages are saved";
+    case "reconnecting":
+      return "Connection lost · Reconnecting…";
+    case "closed":
+      return "Disconnected";
+    default:
+      return "Unknown connection status";
+  }
+});
 
 watch(messages, async () => {
   const list = messageList.value;
@@ -27,8 +39,11 @@ watch(messages, async () => {
 async function sendMessage(body: string) {
   if (!send(body)) return;
   draft.value = "";
+
   await nextTick();
-  if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight;
+  if (messageList.value) {
+    messageList.value.scrollTop = messageList.value.scrollHeight;
+  }
 }
 </script>
 

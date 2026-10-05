@@ -16,7 +16,10 @@ function submit() {
 function onEnter(event: KeyboardEvent) {
   if (event.shiftKey || event.isComposing) return;
   event.preventDefault();
-  if (!event.repeat) submit();
+
+  if (!event.repeat) {
+    submit();
+  }
 }
 </script>
 
