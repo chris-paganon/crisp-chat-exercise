@@ -9,11 +9,15 @@ export async function hashBytes(bytes: ArrayBuffer) {
 export async function fingerprintFile(file: File, cancelled: () => boolean = () => false) {
   const hashes: string[] = [];
   for (let offset = 0; offset < file.size; offset += HASH_BLOCK_BYTES) {
-    if (cancelled()) throw new Error("File verification stopped.");
+    if (cancelled()) {
+      throw new Error("File verification stopped.");
+    }
 
     hashes.push(await hashBytes(await file.slice(offset, offset + HASH_BLOCK_BYTES).arrayBuffer()));
   }
-  if (cancelled()) throw new Error("File verification stopped.");
+  if (cancelled()) {
+    throw new Error("File verification stopped.");
+  }
 
   return hashBytes(new TextEncoder().encode(`${file.size}:${hashes.join(":")}`).buffer);
 }

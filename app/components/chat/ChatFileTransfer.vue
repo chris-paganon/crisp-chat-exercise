@@ -10,7 +10,9 @@ const sourceInput = ref<HTMLInputElement>();
 function reselect(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (file) emit("resume", file);
+  if (file) {
+    emit("resume", file);
+  }
 
   input.value = "";
 }

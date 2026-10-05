@@ -33,7 +33,9 @@ export async function updateFileRecord(roomId: string, id: string, status: FileL
     status, message: message ?? null, updatedAt: new Date(), version: sql`${fileTransfer.version} + 1`,
   }).where(and(eq(fileTransfer.roomId, roomId), eq(fileTransfer.id, id))).returning();
 
-  if (!record) throw new Error("File offer not found.");
+  if (!record) {
+    throw new Error("File offer not found.");
+  }
 
   return record;
 }

@@ -25,7 +25,9 @@ export function serializeFileOperation<T>(roomId: string, work: () => Promise<T>
   const result = (operations.get(roomId) ?? Promise.resolve()).catch(() => {}).then(work);
   operations.set(roomId, result);
   void result.finally(() => {
-    if (operations.get(roomId) === result) operations.delete(roomId);
+    if (operations.get(roomId) === result) {
+      operations.delete(roomId);
+    }
   }).catch(() => {});
   return result;
 }
@@ -63,7 +65,9 @@ export async function unregisterTransferPeer(peer: TransferPeer) {
   const roomId = peer.context.roomId as string;
   const peers = rooms.get(roomId);
   peers?.delete(peer);
-  if (!peers?.size) rooms.delete(roomId);
+  if (!peers?.size) {
+    rooms.delete(roomId);
+  }
 
   for (const current of [...transfers.values()]) {
     if (current.sender?.id === peer.id || current.receiver?.id === peer.id) {
@@ -91,9 +95,15 @@ async function startQueued(roomId: string) {
   const roomTransfers = [...transfers.values()].filter(item => item.record.roomId === roomId);
   let running = roomTransfers.filter(item => item.attempt).length;
   for (const current of roomTransfers) {
-    if (running >= MAX_CONCURRENT_TRANSFERS) break;
-    if (current.attempt || !current.sender || !current.receiver || current.record.status === "offered") continue;
-    if (current.sender.context.transferClosed || current.receiver.context.transferClosed) continue;
+    if (running >= MAX_CONCURRENT_TRANSFERS) {
+      break;
+    }
+    if (current.attempt || !current.sender || !current.receiver || current.record.status === "offered") {
+      continue;
+    }
+    if (current.sender.context.transferClosed || current.receiver.context.transferClosed) {
+      continue;
+    }
 
     clearTimeout(current.timer);
     current.record = await updateFileRecord(roomId, current.record.id, "accepted");

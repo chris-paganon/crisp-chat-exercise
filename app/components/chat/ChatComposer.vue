@@ -22,7 +22,9 @@ const canSend = computed(() => !props.disabled && Boolean(draft.value.trim())
   && draft.value.trim().length <= MAX_CHAT_MESSAGE_LENGTH);
 
 function submit() {
-  if (canSend.value) emit("send", draft.value);
+  if (canSend.value) {
+    emit("send", draft.value);
+  }
 }
 
 function onEnter(event: KeyboardEvent) {

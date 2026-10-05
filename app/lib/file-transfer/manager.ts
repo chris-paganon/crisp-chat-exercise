@@ -65,7 +65,9 @@ export function createTransferManager(options: ManagerOptions) {
       return true;
     }
     catch (error) {
-      if (!(error instanceof ConnectionUnavailableError)) throw error;
+      if (!(error instanceof ConnectionUnavailableError)) {
+        throw error;
+      }
       return false;
     }
   }
@@ -91,7 +93,9 @@ export function createTransferManager(options: ManagerOptions) {
     const attempt = resourceFor(item.id).attempt;
     closeResources(item);
     update(item, { status: "interrupted", message, needsSource: item.direction === "outgoing" && !resourceFor(item.id).source });
-    if (notify) send({ type: "file-pause", id: item.id, attempt });
+    if (notify) {
+      send({ type: "file-pause", id: item.id, attempt });
+    }
   }
 
   function finish(item: TransferView, record: FileRecord) {
@@ -175,13 +179,17 @@ export function createTransferManager(options: ManagerOptions) {
       interrupt(item, record.message ?? "Transfer interrupted. Resume when both sides are ready.", false);
     }
     else if (record.status === "offered") {
-      if (resource.session || (resource.ready && record.message)) closeResources(item);
+      if (resource.session || (resource.ready && record.message)) {
+        closeResources(item);
+      }
       update(item, { status: "offered", message: record.message ?? undefined, needsSource: item.direction === "outgoing" && !resource.source });
     }
     else if (!resource.session && !resource.preparing && !resource.ready) {
       update(item, { status: "interrupted", needsSource: item.direction === "outgoing" && !resource.source });
     }
-    if (fresh || isFileTerminal(record.status)) void inspectLocal(item);
+    if (fresh || isFileTerminal(record.status)) {
+      void inspectLocal(item);
+    }
     publish();
   }
 
@@ -235,12 +243,16 @@ export function createTransferManager(options: ManagerOptions) {
       resource.preparing = false;
       update(item, { status: "offering" });
       resource.ready = send({ type: "file-offer", id: item.id, name: item.name, size: item.size, mime: item.mime, fingerprint: item.fingerprint });
-      if (!resource.ready) interrupt(item, "Reconnect to send this file offer.", false);
+      if (!resource.ready) {
+        interrupt(item, "Reconnect to send this file offer.", false);
+      }
     }
     catch (error) {
       if (resource.generation === generation) {
         resource.preparing = false;
-        if (!isFileTerminal(item.status)) fail(item, error);
+        if (!isFileTerminal(item.status)) {
+          fail(item, error);
+        }
       }
     }
   }
@@ -285,7 +297,9 @@ export function createTransferManager(options: ManagerOptions) {
         }
       }
       else {
-        if (!item.fingerprint) throw new Error("This older file offer cannot be resumed. Ask the sender to offer it again.");
+        if (!item.fingerprint) {
+          throw new Error("This older file offer cannot be resumed. Ask the sender to offer it again.");
+        }
 
         if (saved && isCheckpointExpired(saved)) {
           // Expiration reclaims data only on an explicit restart, never during history loading.
@@ -323,7 +337,9 @@ export function createTransferManager(options: ManagerOptions) {
       }
     }
     catch (error) {
-      if (resource.generation === generation && !isFileTerminal(item.status)) fail(item, error);
+      if (resource.generation === generation && !isFileTerminal(item.status)) {
+        fail(item, error);
+      }
     }
     finally {
       if (resource.generation === generation) {
@@ -361,21 +377,35 @@ export function createTransferManager(options: ManagerOptions) {
           publish();
         }
       },
-      connected: () => { if (current()) update(item, { status: "transferring" }); },
-      fail: (error: Error) => { if (current()) fail(item, error); },
+      connected() {
+        if (!current()) return;
+
+        update(item, { status: "transferring" });
+      },
+      fail(error: Error) {
+        if (!current()) return;
+
+        fail(item, error);
+      },
     };
     try {
       if (item.direction === "outgoing") {
-        if (!resource.source) throw new Error("Reselect the original file to resume.");
+        if (!resource.source) {
+          throw new Error("Reselect the original file to resume.");
+        }
 
         const session = createSendSession({ ...shared, source: resource.source, sent: () => {
-          if (current()) update(item, { status: "finishing" });
+          if (current()) {
+            update(item, { status: "finishing" });
+          }
         } });
         resource.session = session;
         session.start();
       }
       else {
-        if (!resource.sink || resource.sink.offset !== event.offset) throw new Error("The receiving checkpoint does not match.");
+        if (!resource.sink || resource.sink.offset !== event.offset) {
+          throw new Error("The receiving checkpoint does not match.");
+        }
 
         resource.session = createReceiveSession({ ...shared, size: item.size, sink: resource.sink, complete(file) {
           if (!current()) return;
@@ -410,13 +440,17 @@ export function createTransferManager(options: ManagerOptions) {
         start(item, event);
         break;
       case "file-signal":
-        if (event.attempt === resource.attempt) resource.session?.receiveSignal(event.signal);
+        if (event.attempt === resource.attempt) {
+          resource.session?.receiveSignal(event.signal);
+        }
         break;
       case "file-wake":
         void resume(item.id, undefined, true);
         break;
       case "file-waiting":
-        if (resource.ready) update(item, { status: "waiting" });
+        if (resource.ready) {
+          update(item, { status: "waiting" });
+        }
         break;
       case "file-error":
         if (resource.pendingControl) {
@@ -425,7 +459,9 @@ export function createTransferManager(options: ManagerOptions) {
           update(item, { status: item.persistedStatus === "offered" ? "offered" : "interrupted", controlPending: false, message: event.message });
           break;
         }
-        if (!event.attempt || event.attempt === resource.attempt) interrupt(item, event.message, false);
+        if (!event.attempt || event.attempt === resource.attempt) {
+          interrupt(item, event.message, false);
+        }
         break;
     }
   }
@@ -437,7 +473,9 @@ export function createTransferManager(options: ManagerOptions) {
       await deleteLocalControl(key(item.id));
     }
     catch (error) {
-      if (!disposed) update(item, { message: asTransferError(error).message });
+      if (!disposed) {
+        update(item, { message: asTransferError(error).message });
+      }
     }
   }
 
@@ -467,7 +505,9 @@ export function createTransferManager(options: ManagerOptions) {
       const resource = resourceFor(item.id);
       if (resource.pendingControl) {
         void (resource.controlSaving ?? Promise.resolve()).then(() => {
-          if (resource.pendingControl) send({ type: resource.pendingControl, id: item.id });
+          if (resource.pendingControl) {
+            send({ type: resource.pendingControl, id: item.id });
+          }
         });
       }
       else if (!isFileTerminal(item.status)) {
@@ -492,9 +532,13 @@ export function createTransferManager(options: ManagerOptions) {
       update(item, { message: `Cannot save pending cancellation: ${asTransferError(error).message}` });
     });
     void resource.controlSaving.then(() => {
-      if (resource.pendingControl === type) send({ type, id });
+      if (resource.pendingControl === type) {
+        send({ type, id });
+      }
     });
-    if (item.direction === "incoming") void remove(id);
+    if (item.direction === "incoming") {
+      void remove(id);
+    }
   }
 
   async function download(id: string) {
@@ -537,7 +581,9 @@ export function createTransferManager(options: ManagerOptions) {
 
   function disconnect() {
     for (const item of transfers.values()) {
-      if (!isFileTerminal(item.status)) interrupt(item, "Connection interrupted. Your saved progress is kept.");
+      if (!isFileTerminal(item.status)) {
+        interrupt(item, "Connection interrupted. Your saved progress is kept.");
+      }
     }
   }
 

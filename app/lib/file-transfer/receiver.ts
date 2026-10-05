@@ -42,7 +42,9 @@ export function createFileReceiver(
       }
 
       if (data instanceof ArrayBuffer) {
-        if (!bytes || written + bytes > size) throw new Error("Received file exceeds its advertised size.");
+        if (!bytes || written + bytes > size) {
+          throw new Error("Received file exceeds its advertised size.");
+        }
         await sink.write(data);
         if (stopped) return;
 
@@ -66,7 +68,9 @@ export function createFileReceiver(
           const file = await sink.finish();
           if (stopped) return;
 
-          if (file.size !== size) throw new Error("Received file size does not match the offer.");
+          if (file.size !== size) {
+            throw new Error("Received file size does not match the offer.");
+          }
           complete(file);
         }
         else {
@@ -74,7 +78,9 @@ export function createFileReceiver(
         }
       }
     }).catch((error) => {
-      if (!stopped) fail(error);
+      if (!stopped) {
+        fail(error);
+      }
     }).finally(() => {
       pendingBytes -= bytes;
       pendingMessages--;

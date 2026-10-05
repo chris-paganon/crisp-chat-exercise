@@ -41,7 +41,9 @@ export async function removeLocalFile(key: LocalTransferKey) {
     await directory.removeEntry(localTransferName(key));
   }
   catch (error) {
-    if (!(error instanceof DOMException && error.name === "NotFoundError")) throw error;
+    if (!(error instanceof DOMException && error.name === "NotFoundError")) {
+      throw error;
+    }
   }
   await deleteCheckpoint(key);
 }
@@ -52,7 +54,9 @@ export async function openResumableFileSink(key: LocalTransferKey, size: number,
   }
   const name = localTransferName(key);
   const reserve = preparing.then(async () => {
-    if (reservations.has(name)) throw new Error("This file is already being received.");
+    if (reservations.has(name)) {
+      throw new Error("This file is already being received.");
+    }
 
     const saved = await readCheckpoint(key);
     const remaining = Math.max(0, size - (saved?.bytes ?? 0));

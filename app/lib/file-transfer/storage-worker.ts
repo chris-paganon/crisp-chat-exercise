@@ -31,7 +31,9 @@ let expectedSize = 0;
 let queue = Promise.resolve();
 
 async function tailHash() {
-  if (!handle) throw new Error("File writer is closed.");
+  if (!handle) {
+    throw new Error("File writer is closed.");
+  }
 
   const start = Math.max(0, written - BATCH_BYTES);
   const bytes = new ArrayBuffer(written - start);
@@ -42,7 +44,9 @@ async function tailHash() {
 }
 
 async function checkpoint(completed = false) {
-  if (!handle || !record) throw new Error("File writer is closed.");
+  if (!handle || !record) {
+    throw new Error("File writer is closed.");
+  }
 
   handle.flush();
   const next = { ...record, bytes: written, tailHash: await tailHash(), completed, updatedAt: Date.now() };
@@ -54,7 +58,9 @@ async function checkpoint(completed = false) {
 async function execute(command: StorageCommand) {
   switch (command.type) {
     case "open": {
-      if (handle) throw new Error("File writer is already open.");
+      if (handle) {
+        throw new Error("File writer is already open.");
+      }
 
       const root = await navigator.storage.getDirectory();
       const directory = await root.getDirectoryHandle("crisp-transfers", { create: true });
@@ -85,7 +91,9 @@ async function execute(command: StorageCommand) {
         throw new Error("Invalid file write.");
       }
       const count = handle.write(command.chunk, { at: written });
-      if (count !== command.chunk.byteLength) throw new Error("The entire file chunk could not be written.");
+      if (count !== command.chunk.byteLength) {
+        throw new Error("The entire file chunk could not be written.");
+      }
 
       written += count;
       return written;
