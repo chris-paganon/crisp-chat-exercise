@@ -11,7 +11,7 @@ const messageList = ref<HTMLElement>();
 
 const sortedMessages = computed(() => {
   return [...messages.value].sort((a, b) =>
-    a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
 });
 
 const statusLabel = computed(() => {
@@ -94,7 +94,7 @@ async function sendMessage(body: string) {
           {{ item.body }}
         </p>
         <div class="mx-1 mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-          <time :datetime="item.createdAt">{{ timeLabel(item.createdAt) }}</time>
+          <time :datetime="item.createdAt.toISOString()">{{ timeLabel(item.createdAt) }}</time>
           <span v-if="item.senderId === userId">{{ item.status === 'sending' ? 'Sending…' : item.status === 'sent' ? 'Sent' : 'Failed' }}</span>
           <button
             v-if="item.status === 'failed'"
