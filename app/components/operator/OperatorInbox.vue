@@ -63,11 +63,11 @@ function dateLabel(value: string) {
       <h1 class="text-2xl font-medium tracking-tight">
         Inbox
       </h1>
-      <span class="mt-1 block text-xs text-muted-foreground">{{ unclaimedCount }} unclaimed · {{ rooms.length - unclaimedCount }} yours</span>
+      <span class="mt-1 block text-base text-muted-foreground">{{ unclaimedCount }} unclaimed · {{ rooms.length - unclaimedCount }} yours</span>
     </header>
     <p
       v-if="error"
-      class="mx-4 mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+      class="mx-4 mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive"
       role="alert"
     >
       {{ error }}
@@ -77,12 +77,12 @@ function dateLabel(value: string) {
       <UiInput
         v-model="search"
         type="search"
-        class="h-9 rounded-sm bg-muted pl-9 text-xs md:text-xs"
+        class="h-11 rounded-sm bg-muted pl-9 text-base md:text-base"
         placeholder="Search conversations"
         aria-label="Search conversations"
       />
     </div>
-    <div class="flex shrink-0 items-center justify-between border-b px-5 pb-3 text-xs font-medium text-muted-foreground">
+    <div class="flex shrink-0 items-center justify-between border-b px-5 pb-3 text-base font-medium text-muted-foreground">
       <span>All conversations</span>
       <UiButton
         type="button"
@@ -101,12 +101,12 @@ function dateLabel(value: string) {
       class="gap-3 rounded-none px-4 py-8 md:p-4"
       role="alert"
     >
-      <p class="text-xs text-muted-foreground">
+      <p class="text-base text-muted-foreground">
         Couldn't load your conversations.
       </p>
       <UiButton
         variant="secondary"
-        size="sm"
+        size="default"
         type="button"
         @click="refresh()"
       >
@@ -118,7 +118,7 @@ function dateLabel(value: string) {
       class="gap-3 rounded-none px-4 py-8 md:p-4"
       role="status"
     >
-      <LoaderCircle class="size-6 animate-spin text-primary motion-reduce:animate-none" /><p class="text-xs text-muted-foreground">
+      <LoaderCircle class="size-6 animate-spin text-primary motion-reduce:animate-none" /><p class="text-base text-muted-foreground">
         Loading conversations…
       </p>
     </UiEmpty>
@@ -128,7 +128,7 @@ function dateLabel(value: string) {
     >
       <MessageSquare class="size-7.5 text-muted-foreground" /><h2 class="text-base font-medium text-muted-foreground">
         Waiting for visitors
-      </h2><p class="text-xs/relaxed text-muted-foreground">
+      </h2><p class="text-base/relaxed text-muted-foreground">
         New conversations appear here when visitors open the chat.
       </p>
     </UiEmpty>
@@ -136,7 +136,7 @@ function dateLabel(value: string) {
       v-else-if="!filteredRooms.length"
       class="gap-3 rounded-none px-4 py-8 md:p-4"
     >
-      <p class="text-xs text-muted-foreground">
+      <p class="text-base text-muted-foreground">
         No conversations match your search.
       </p>
     </UiEmpty>
@@ -159,12 +159,12 @@ function dateLabel(value: string) {
           class="absolute -right-px -bottom-px size-2.5 rounded-full border-2 border-background bg-chart-2"
         /></span>
         <span class="block min-w-0 flex-1">
-          <span class="flex items-center gap-2"><strong class="truncate text-xs font-medium">{{ room.title }}</strong><small class="ml-auto shrink-0 text-xs text-muted-foreground">{{ dateLabel(room.createdAt) }}</small></span>
-          <span class="mt-1.5 block truncate text-xs text-muted-foreground">{{ room.operatorName ? 'Claimed by you' : 'Unclaimed · Open to join' }}</span>
+          <span class="flex items-center gap-2"><strong class="truncate text-base font-medium">{{ room.title }}</strong><small class="ml-auto shrink-0 text-base text-muted-foreground">{{ dateLabel(room.createdAt) }}</small></span>
+          <span class="mt-1.5 block truncate text-base text-muted-foreground">{{ room.operatorName ? 'Claimed by you' : 'Unclaimed · Open to join' }}</span>
         </span>
       </button>
     </div>
-    <footer class="mt-auto flex shrink-0 items-center justify-center gap-2 border-t px-2 py-4 text-[0.625rem] text-muted-foreground">
+    <footer class="mt-auto flex shrink-0 items-center justify-center gap-2 border-t p-4 text-center text-base text-muted-foreground">
       <ShieldCheck class="size-3.5 shrink-0" /> Private conversations, just for two.
     </footer>
   </section>
