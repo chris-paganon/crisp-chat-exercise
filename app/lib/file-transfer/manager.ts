@@ -155,6 +155,7 @@ export function createTransferManager(options: ManagerOptions) {
       if (event.senderId === options.userId()) {
         if (!item) return;
         if (!isTransferActive(item)) {
+          // The offer was cancelled before the server responded with the confirmation.
           try {
             options.send({ type: "file-cancel", id: event.id });
           }
@@ -167,7 +168,8 @@ export function createTransferManager(options: ManagerOptions) {
         update(item, { status: "offered" });
       }
       else if (!item) {
-        // A simultaneous outgoing offer lost the server's room lock.
+        // TODO: should probably be removed once we support multiple file transfers
+        // A simultaneous outgoing offer lost the server's room race condition lock.
         for (const pending of transfers.values()) {
           if (isTransferActive(pending)) finish(pending, "failed", "The other participant offered a file first.");
         }
