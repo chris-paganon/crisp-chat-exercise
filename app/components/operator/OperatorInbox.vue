@@ -2,6 +2,7 @@
 import { LoaderCircle, MessageSquare, RefreshCw } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { chatError } from "@/lib/chat-error";
+import { dateLabel } from "@/lib/date";
 import type { ChatRoom } from "~~/shared/types/chat";
 
 const emit = defineEmits<{ open: []; claimError: [] }>();
@@ -42,9 +43,6 @@ async function selectRoom(id: string) {
     emit("claimError");
   }
   finally { busy.value = false; }
-}
-function dateLabel(value: string) {
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 </script>
 

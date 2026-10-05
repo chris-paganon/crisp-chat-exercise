@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MessageSquare } from "lucide-vue-next";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
+import { timeLabel } from "@/lib/date";
 
 const props = defineProps<{ roomId: string; peerName: string }>();
 const { messages, userId, connection, send, retry } = useChatMessages(props.roomId);
@@ -27,10 +28,6 @@ async function sendMessage(body: string) {
   draft.value = "";
   await nextTick();
   if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight;
-}
-
-function timeLabel(value: string) {
-  return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 </script>
 
