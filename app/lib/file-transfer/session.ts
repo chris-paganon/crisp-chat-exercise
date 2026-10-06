@@ -1,11 +1,8 @@
 import type { FileSignal } from "~~/shared/types/file-transfer";
-import type { FileSink } from "./storage";
 import { asTransferError, createRTCPeer } from "./rtc-peer";
-import { createFileSender } from "./sender";
-import { createFileReceiver } from "./receiver";
 import { TRANSFER_TIMEOUT_MS } from "./protocol";
 
-interface SessionOptions {
+export interface SessionOptions {
   id: string;
   roomId: string;
   offset: number;
@@ -20,29 +17,25 @@ export interface TransferSession {
   close: () => void;
 }
 
-interface SendSessionOptions extends SessionOptions {
-  source: File;
-  sent: () => void;
+export interface ChannelTransfer {
+  receiveFileChannelMessage: (data: unknown) => void;
+  stop: () => void;
+  start?: () => Promise<void>;
 }
 
-interface ReceiveSessionOptions extends SessionOptions {
-  size: number;
-  sink: FileSink;
-  complete: (file: File) => void;
+interface ChannelLifecycle {
+  progress: (bytes: number) => void;
+  awaitCompletion: () => void;
+  fail: (error: unknown) => void;
 }
 
-export function createSendSession(options: SendSessionOptions) {
-  return createSession(options);
+interface TransportSessionOptions extends SessionOptions {
+  initiator: boolean;
+  createChannelTransfer: (channel: RTCDataChannel, lifecycle: ChannelLifecycle) => ChannelTransfer;
 }
 
-export function createReceiveSession(options: ReceiveSessionOptions): TransferSession {
-  const { receiveSignal, close } = createSession(options);
-  // Receiving begins with the remote offer; no local negotiation needs starting.
-  return { receiveSignal, close };
-}
-
-/** Shared WebRTC peer/channel lifecycle with the two file transfer implementations. */
-function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
+/** Owns connection, channel events, timeouts, and cleanup independently of file direction. */
+export function createTransportSession(options: TransportSessionOptions) {
   let stopped = false;
   let awaitingCompletion = false;
   let transportError: Error | undefined;
@@ -60,6 +53,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
 
     options.fail(asTransferError(error));
   }
+
   // Keep a 30sec activity timer running. If it expires, the transfer is aborted.
   function activity() {
     clearTimeout(timer);
@@ -69,15 +63,17 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
       }
     }, awaitingCompletion ? 120000 : TRANSFER_TIMEOUT_MS);
   }
+
   function awaitServerResult(error: unknown) {
     if (stopped || transportError) return;
 
-    // Closing WebRTC and delivering file-ended use independent transports.
+    // Closing WebRTC and delivering file-record use independent transports.
     // Stop I/O, but let the server's cancellation arrive before reporting failure.
     transportError = asTransferError(error);
     stopTransfer?.();
     activity();
   }
+
   function progress(bytes: number) {
     activity();
     options.progress(bytes);
@@ -86,11 +82,11 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
   const RTCPeer = createRTCPeer({
     id: options.id,
     roomId: options.roomId,
-    sender: "source" in options,
+    initiator: options.initiator,
     sendSignal: options.sendSignal,
     fail,
     connectionLost(state) {
-      // After end is sent, the receiver can close before file-ended arrives.
+      // After end is sent, the receiver can close before file-record arrives.
       // The activity timer still bounds our wait for the server result.
       if (!awaitingCompletion || state === "failed") {
         awaitServerResult(new Error("Peer connection lost. Send the file again once connected."));
@@ -114,22 +110,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
       awaitingCompletion = true;
       activity();
     }
-    let transfer: ReturnType<typeof createFileSender> | ReturnType<typeof createFileReceiver>;
-    let startTransfer: (() => Promise<void>) | undefined;
-    if ("source" in options) {
-      const sender = createFileSender(current, options.source, progress, () => {
-        awaitCompletion();
-        options.sent();
-      }, options.offset);
-      transfer = sender;
-      startTransfer = sender.start;
-    }
-    else {
-      transfer = createFileReceiver(current, options.size, options.sink, progress, (file) => {
-        awaitCompletion();
-        options.complete(file);
-      }, fail, options.offset, awaitCompletion);
-    }
+    const transfer = options.createChannelTransfer(current, { progress, awaitCompletion, fail });
     stopTransfer = transfer.stop;
 
     current.onmessage = ({ data }) => {
@@ -150,7 +131,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
       opened = true;
       activity();
       options.connected();
-      void startTransfer?.().catch(fail);
+      void transfer.start?.().catch(fail);
     };
 
     if (current.readyState === "open") {

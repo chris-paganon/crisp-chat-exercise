@@ -3,7 +3,7 @@ import type { FileSignal } from "~~/shared/types/file-transfer";
 interface RTCPeerOptions {
   id: string;
   roomId: string;
-  sender: boolean;
+  initiator: boolean;
   sendSignal: (signal: FileSignal) => void;
   onRtcDataChannel: (channel: RTCDataChannel) => void;
   fail: (error: Error) => void;
@@ -53,7 +53,7 @@ export function createRTCPeer(options: RTCPeerOptions) {
     }
   };
   RTCPeer.ondatachannel = ({ channel }) => {
-    if (stopped || options.sender) {
+    if (stopped || options.initiator) {
       channel.close();
       return;
     }
@@ -61,7 +61,7 @@ export function createRTCPeer(options: RTCPeerOptions) {
   };
 
   async function start() {
-    if (!options.sender) return;
+    if (!options.initiator) return;
     if (!await configured || stopped) return;
 
     options.onRtcDataChannel(RTCPeer.createDataChannel(`file:${options.id}`, { ordered: true }));
@@ -105,14 +105,16 @@ export function createRTCPeer(options: RTCPeerOptions) {
         await RTCPeer.addIceCandidate(candidate ?? undefined);
       }
 
-      if (!options.sender) {
+      if (!options.initiator) {
         await RTCPeer.setLocalDescription(await RTCPeer.createAnswer());
         if (!stopped) {
           options.sendSignal({ description: { type: "answer", sdp: RTCPeer.localDescription!.sdp } });
         }
       }
     }).catch((error) => {
-      if (!stopped) options.fail(asTransferError(error));
+      if (!stopped) {
+        options.fail(asTransferError(error));
+      }
     });
   }
 
