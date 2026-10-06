@@ -1,3 +1,5 @@
+import type { fileTransfer } from "~~/server/db/schema/chat";
+
 export interface FileOffer {
   id: string;
   name: string;
@@ -12,16 +14,7 @@ export type FileLifecycle = "offered" | "accepted" | "interrupted" | FileEndStat
 export const isFileTerminal = (status: string) => ["completed", "declined", "cancelled", "failed"].includes(status);
 export const MAX_CONCURRENT_TRANSFERS = 3;
 
-export interface FileRecord extends FileOffer {
-  roomId: string;
-  senderId: string;
-  receiverId: string;
-  status: FileLifecycle;
-  createdAt: Date;
-  updatedAt: Date;
-  version: number;
-  message: string | null;
-}
+export type FileRecord = typeof fileTransfer.$inferSelect;
 
 export type FileSignal
   = | { description: { type: "offer" | "answer"; sdp: string } }
