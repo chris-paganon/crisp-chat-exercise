@@ -5,6 +5,7 @@ import type { LocalControl } from "./recovery";
 import { isFileTerminal } from "~~/shared/types/file-transfer";
 import { nowTimestamp } from "~~/shared/utils/date";
 import { createTransfer } from "./transfer";
+import { createOutgoingTransfer } from "./outgoing-transfer";
 import { readIndexedDbLocalControl, deleteIndexedDbLocalControl } from "./recovery";
 
 interface ManagerOptions {
@@ -22,9 +23,8 @@ export function createTransferManager(options: ManagerOptions) {
   let hydrationGeneration = 0;
   const key = (id: string) => ({ userId: options.userId(), roomId: options.roomId, id });
   const publish = () => options.changed([...transfers.values()].map(transfer => ({ ...transfer.view })));
-  const create = (view: TransferView) => createTransfer(view, {
-    ...options, historyReady: () => historyReady, changed: publish,
-  });
+  const transferOptions = () => ({ ...options, historyReady: () => historyReady, changed: publish });
+  const create = (view: TransferView) => createTransfer(view, transferOptions());
 
   function restoreRecord(record: FileRecord, control?: { command: LocalControl | undefined }) {
     if (disposed || record.roomId !== options.roomId) return;
@@ -87,10 +87,10 @@ export function createTransferManager(options: ManagerOptions) {
   async function offer(file: File) {
     if (disposed) return;
 
-    const transfer = create({
+    const transfer = createOutgoingTransfer({
       id: crypto.randomUUID(), name: file.name, size: file.size, mime: file.type,
       direction: "outgoing", status: "verifying", bytes: 0, createdAt: nowTimestamp(),
-    });
+    }, transferOptions());
     if (!transfer.requestConsent()) return;
 
     transfers.set(transfer.view.id, transfer);
@@ -99,11 +99,20 @@ export function createTransferManager(options: ManagerOptions) {
   }
 
   async function accept(id: string) {
-    await transfers.get(id)?.accept();
+    const transfer = transfers.get(id);
+    if (transfer?.direction === "incoming") {
+      await transfer.accept();
+    }
   }
 
   async function resume(id: string, file?: File, automatic = false) {
-    await transfers.get(id)?.resume(file, automatic);
+    const transfer = transfers.get(id);
+    if (transfer?.direction === "outgoing") {
+      await transfer.resume(file);
+    }
+    else if (transfer?.direction === "incoming") {
+      await transfer.resume(automatic);
+    }
   }
 
   function receiveServerEvent(event: FileServerEvent) {
@@ -117,15 +126,27 @@ export function createTransferManager(options: ManagerOptions) {
   }
 
   function stop(id: string, type: LocalControl) {
-    transfers.get(id)?.stop(type);
+    const transfer = transfers.get(id);
+    if (transfer?.direction === "incoming") {
+      transfer.stop(type);
+    }
+    else if (transfer?.direction === "outgoing" && type === "file-cancel") {
+      transfer.stop();
+    }
   }
 
   async function download(id: string) {
-    await transfers.get(id)?.download();
+    const transfer = transfers.get(id);
+    if (transfer?.direction === "incoming") {
+      await transfer.download();
+    }
   }
 
   async function remove(id: string) {
-    await transfers.get(id)?.remove();
+    const transfer = transfers.get(id);
+    if (transfer?.direction === "incoming") {
+      await transfer.remove();
+    }
   }
 
   function disconnect() {

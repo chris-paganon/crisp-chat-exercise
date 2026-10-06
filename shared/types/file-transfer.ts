@@ -22,7 +22,7 @@ export type FileSignal
   = | { description: { type: "offer" | "answer"; sdp: string } }
     | { candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null };
 
-/** Commands either participant can send during an accepted transfer. */
+/** Commands either participant can send, subject to server lifecycle validation. */
 export type FileCommonClientEvent
   = | { type: "file-resume"; id: string; offset: number }
     | { type: "file-cancel"; id: string }
