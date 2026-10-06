@@ -8,7 +8,7 @@ import { ConnectionUnavailableError } from "../chat-error";
 import { asTransferError } from "./rtc-peer";
 import { createReceiveSession, createSendSession } from "./session";
 import { createFileDownload } from "./storage";
-import { fingerprintFile } from "./fingerprint";
+import { verifyFileFingerprint } from "./fingerprint";
 import { readIndexedDbCheckpoint, isCheckpointExpired, readIndexedDbLocalControl, saveIndexedDbLocalControl, deleteIndexedDbLocalControl } from "./recovery";
 import { getLocalFile, openResumableFileSink, removeLocalFile, touchLocalFile } from "./resumable-storage";
 
@@ -37,9 +37,6 @@ interface ManagerOptions {
   send: (event: FileClientEvent) => void;
   changed: (transfers: TransferView[]) => void;
 }
-
-// Source verification is serialized across rooms to bound hashing memory.
-let verification = Promise.resolve();
 
 export function createTransferManager(options: ManagerOptions) {
   const transfers = new Map<string, TransferView>();
@@ -218,9 +215,7 @@ export function createTransferManager(options: ManagerOptions) {
   async function verifySource(item: TransferView, file: File, resource: TransferResources) {
     const generation = resource.generation;
     update(item, { status: "verifying", message: undefined });
-    const operation = verification.then(() => fingerprintFile(file, () => disposed || resource.generation !== generation));
-    verification = operation.then(() => {}, () => {});
-    const fingerprint = await operation;
+    const fingerprint = await verifyFileFingerprint(file, () => disposed || resource.generation !== generation);
     if (disposed || resource.generation !== generation) return false;
     if (item.fingerprint && (item.fingerprint !== fingerprint || file.size !== item.size)) {
       throw new Error("Choose the original file. The selected file's contents do not match this transfer.");
