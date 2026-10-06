@@ -1,7 +1,17 @@
 import { BATCH_BYTES, CHUNK_BYTES, readFileControl } from "./protocol";
 
+interface FileSenderOptions {
+  channel: RTCDataChannel;
+  file: File;
+  startOffset?: number;
+  onProgress: (bytes: number) => void;
+  onSent?: () => void;
+}
+
 /** Stop-and-wait batches: an ACK means bytes were written, not merely received. */
-export function createFileSender(channel: RTCDataChannel, file: File, progress: (bytes: number) => void, sent: () => void = () => {}, startOffset = 0) {
+export function createFileSender(options: FileSenderOptions) {
+  const { channel, file, startOffset = 0 } = options;
+
   if (!Number.isSafeInteger(startOffset) || startOffset < 0 || startOffset > file.size) {
     throw new Error("Invalid sending offset.");
   }
@@ -22,7 +32,7 @@ export function createFileSender(channel: RTCDataChannel, file: File, progress: 
       throw new Error("Invalid file acknowledgement.");
     }
 
-    progress(control.offset);
+    options.onProgress(control.offset);
     const resolve = acknowledge;
     acknowledge = undefined;
     rejectWait = undefined;
@@ -56,7 +66,7 @@ export function createFileSender(channel: RTCDataChannel, file: File, progress: 
 
     if (!stopped) {
       channel.send(JSON.stringify({ type: "end" }));
-      sent();
+      options.onSent?.();
     }
   }
 

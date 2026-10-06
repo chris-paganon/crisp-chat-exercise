@@ -1,16 +1,20 @@
 import type { FileSink } from "./storage";
 import { BATCH_BYTES, CHUNK_BYTES, readFileControl } from "./protocol";
 
-export function createFileReceiver(
-  channel: RTCDataChannel,
-  size: number,
-  sink: FileSink,
-  progress: (bytes: number) => void,
-  complete: (file: File) => void,
-  fail: (error: unknown) => void,
-  startOffset = 0,
-  finishing: () => void = () => {},
-) {
+interface FileReceiverOptions {
+  channel: RTCDataChannel;
+  size: number;
+  sink: FileSink;
+  startOffset?: number;
+  onProgress: (bytes: number) => void;
+  onFinishing?: () => void;
+  onComplete: (file: File) => void;
+  onError: (error: unknown) => void;
+}
+
+export function createFileReceiver(options: FileReceiverOptions) {
+  const { channel, size, sink, startOffset = 0 } = options;
+
   if (!Number.isSafeInteger(startOffset) || startOffset < 0 || startOffset > size) {
     throw new Error("Invalid receiving offset.");
   }
@@ -49,7 +53,7 @@ export function createFileReceiver(
         if (stopped) return;
 
         written += bytes;
-        progress(written);
+        options.onProgress(written);
       }
       else {
         const control = readFileControl(data as string);
@@ -64,14 +68,14 @@ export function createFileReceiver(
         }
         else if (control.type === "end" && written === size) {
           ended = true;
-          finishing();
+          options.onFinishing?.();
           const file = await sink.finish();
           if (stopped) return;
 
           if (file.size !== size) {
             throw new Error("Received file size does not match the offer.");
           }
-          complete(file);
+          options.onComplete(file);
         }
         else {
           throw new Error("Incomplete file or invalid transfer control message.");
@@ -79,7 +83,7 @@ export function createFileReceiver(
       }
     }).catch((error) => {
       if (!stopped) {
-        fail(error);
+        options.onError(error);
       }
     }).finally(() => {
       pendingBytes -= bytes;

@@ -14,11 +14,22 @@ export function createReceiveSession(options: ReceiveSessionOptions): TransferSe
   const { receiveSignal, close } = createTransportSession({
     ...options,
     initiator: false,
-    createChannelTransfer(channel, { progress, awaitCompletion, fail }) {
-      return createFileReceiver(channel, options.size, options.sink, progress, (file) => {
-        awaitCompletion();
+    createChannelTransfer(channel, lifecycle) {
+      function complete(file: File) {
+        lifecycle.awaitCompletion();
         options.complete(file);
-      }, fail, options.offset, awaitCompletion);
+      }
+
+      return createFileReceiver({
+        channel,
+        size: options.size,
+        sink: options.sink,
+        startOffset: options.offset,
+        onProgress: lifecycle.progress,
+        onFinishing: lifecycle.awaitCompletion,
+        onComplete: complete,
+        onError: lifecycle.fail,
+      });
     },
   });
 

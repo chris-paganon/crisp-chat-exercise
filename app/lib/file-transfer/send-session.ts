@@ -12,11 +12,19 @@ export function createSendSession(options: SendSessionOptions) {
   return createTransportSession({
     ...options,
     initiator: true,
-    createChannelTransfer(channel, { progress, awaitCompletion }) {
-      return createFileSender(channel, options.source, progress, () => {
-        awaitCompletion();
+    createChannelTransfer(channel, lifecycle) {
+      function sent() {
+        lifecycle.awaitCompletion();
         options.sent();
-      }, options.offset);
+      }
+
+      return createFileSender({
+        channel,
+        file: options.source,
+        startOffset: options.offset,
+        onProgress: lifecycle.progress,
+        onSent: sent,
+      });
     },
   });
 }
