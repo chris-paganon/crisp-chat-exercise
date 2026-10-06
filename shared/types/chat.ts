@@ -1,4 +1,5 @@
 import type { FileClientEvent, FileServerEvent, FileRecord } from "./file-transfer";
+import type { message } from "~~/server/db/schema/chat";
 
 export interface ChatRoom {
   id: string;
@@ -9,13 +10,7 @@ export interface ChatRoom {
 
 export const MAX_CHAT_MESSAGE_LENGTH = 10000;
 
-export interface ChatMessage {
-  id: string;
-  roomId: string;
-  senderId: string;
-  body: string;
-  createdAt: Date;
-}
+export type ChatMessage = typeof message.$inferSelect;
 
 export type ChatClientEvent
   = | FileClientEvent

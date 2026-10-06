@@ -94,6 +94,7 @@ export function createChatMessages(roomId: string, chat: ChatConnection) {
       senderId: userId.value,
       body: text,
       createdAt: new Date(),
+      readAt: null,
       status: "sending",
     };
     messages.value.push(item);
