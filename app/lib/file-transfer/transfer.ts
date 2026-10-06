@@ -17,7 +17,6 @@ interface TransferResources {
   source?: File;
   sink?: ResumableFileSink;
   session?: TransferSession;
-  file?: File;
   attempt?: string;
   // A sent offer, accept, or resume request allows file-start and prevents duplicate requests.
   requestSent: boolean;
@@ -102,7 +101,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
   }
 
   function finish(record: FileRecord) {
-    const hadLocalFile = Boolean(resource.sink || resource.file || item.localBytes);
+    const hadLocalFile = Boolean(resource.sink || item.available || item.localBytes);
     closeResources();
     resource.source = undefined;
     resource.pendingControl = undefined;
@@ -113,7 +112,6 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       bytes: record.status === "completed" ? record.size : item.bytes, needsSource: false,
     });
     if (record.status !== "completed" && item.direction === "incoming" && hadLocalFile) {
-      resource.file = undefined;
       void resource.closing.then(() => removeLocalFile(key())).then(() => {
         update({ available: false, localBytes: 0, hasLocalFile: false, expired: false });
       }).catch(error => update({ message: `Cannot remove local file: ${asTransferError(error).message}` }));
@@ -134,7 +132,6 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       const file = await getLocalFile(key(), item.fingerprint ?? "", item.size);
       if (!isCurrent(generation)) return;
 
-      resource.file = file;
       update({
         localBytes: saved?.bytes ?? 0, available: Boolean(file), hasLocalFile: Boolean(saved),
         expired: saved ? isCheckpointExpired(saved) : false,
@@ -346,8 +343,6 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     }
     const completed = await getLocalFile(key(), item.fingerprint, item.size);
     if (completed && item.persistedStatus !== "offered") {
-      resource.file = completed;
-      item.available = true;
       update({ status: "finishing", available: true, hasLocalFile: true });
       send({ type: "file-finish", id });
       return;
@@ -419,10 +414,9 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
           throw new Error("The receiving checkpoint does not match.");
         }
 
-        resource.session = createReceiveSession({ ...shared, size: item.size, sink: resource.sink, complete(file) {
+        resource.session = createReceiveSession({ ...shared, size: item.size, sink: resource.sink, complete() {
           if (!current()) return;
 
-          resource.file = file;
           update({ status: "finishing", available: true, localBytes: item.size, hasLocalFile: true, expired: false });
           if (!send({ type: "file-finish", id: item.id, attempt: event.attempt })) {
             interrupt("File received. Reconnect to confirm receipt.", false);
@@ -555,7 +549,6 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       await removeLocalFile(key());
       resource.downloads.forEach(revoke => revoke());
       resource.downloads = [];
-      resource.file = undefined;
       update({ available: false, localBytes: 0, hasLocalFile: false, expired: false, bytes: item.status === "completed" ? item.size : 0, message: undefined });
     }
     catch (error) {
