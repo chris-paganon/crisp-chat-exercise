@@ -21,7 +21,7 @@
 1. To keep it simpler while remaining in-scope: Multiple operators for a single chat isn't supported. When an operator opens a chat room, it claims the room and it isn't available to other operators anymore. This would not be ok for production, but given that the operator UI is already beyond the requirements, I thought this was a good enough place to avoid further scope creep.
 2. Any signed-in user is considered an operator. In production this would require proper user roles management.
 3. Orphaned OPFS files can be left behind after a crash, interrupted cleanup, or cleared IndexedDB metadata. Clear this the browser storage to remove local files and checkpoints.
-4. File download depends on OPFS which is subject to a user's browser storage capacity/quota. In production we would probably add a fallback that doesn't support robust partial resume but doesn't require browser storage.
+4. File download depends on OPFS which is subject to a user's browser storage capacity/quota. It makes partial file resume more robust. But in production we would add a fallback that doesn't support robust partial resume but doesn't require browser storage. Private windows especially restrict OPFS on Safari and Firefox.
 5. File offers require a room already claimed by an operator. Offers can be saved while the recipient is offline, but transferring bytes requires both participants online. Reloading the sender's page requires reselecting the original file.
 6. No notifications or incoming message status was added in the operator's dashboard. I considered it out-of-scope for the exercise. As I understand, the operator dashboard is already more than was excpected.
 
