@@ -391,7 +391,7 @@ export function createTransferManager(options: ManagerOptions) {
     const generation = resource.generation;
     const current = () => !disposed && resource.generation === generation && resource.attempt === event.attempt;
     const shared = {
-      id: item.id, offset: event.offset,
+      id: item.id, roomId: options.roomId, offset: event.offset,
       sendSignal(signal: FileSignal) {
         if (current() && !send({ type: "file-signal", id: item.id, attempt: event.attempt, signal })) {
           throw new ConnectionUnavailableError();

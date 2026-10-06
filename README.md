@@ -6,7 +6,7 @@
 2. Any signed-in user is considered an operator. In production this would require proper user roles management.
 3. Orphaned OPFS files can be left behind after a crash, interrupted cleanup, or cleared IndexedDB metadata. This exercise deliberately has no startup or periodic cleanup sweep. Local copies expire after seven days without transfer activity or a download, but expiry alone does not reclaim storage: remove the local file explicitly, or explicitly restart an expired partial transfer. Clearing this site's browser storage also removes local files and checkpoints.
 4. Resume requires the same browser profile and origin for the receiver's partial file. The sender must reselect the original file after a reload; a full content fingerprint rejects a different file. Clearing browser storage, browser eviction, and private-browsing limits can make a partial or completed file unavailable. Chat history remains in PostgreSQL.
-5. Connectivity currently uses Google's STUN server without TURN. Some networks cannot establish a direct P2P connection. Live transfer coordination runs in one server process; multiple server instances would need shared routing and coordination.
+5. Connectivity uses Google's STUN server and optional coturn fallback. TURN must be configured and reachable for networks that cannot establish a direct P2P connection. Live transfer coordination runs in one server process; multiple server instances would need shared routing and coordination.
 6. Receiving requires HTTPS (or localhost), OPFS, IndexedDB, dedicated workers, and OPFS synchronous access handles. Unsupported environments show a storage error; no alternative large-file download backend is implemented. Real 2GB receive/download and the full desktop/mobile browser matrix still need manual validation.
 
 ## Run locally
@@ -50,7 +50,7 @@ docker compose up -d turn
 docker compose logs -f turn
 ```
 
-Both files use coturn's shared-secret authentication for expiring credentials. The local default is `local-turn-secret`; override `TURN_SECRET` in `.env` if desired. The secret stays on the server. A credential issuer must produce a username such as `<expiry-unix-seconds>:<user-id>` and a credential equal to `base64(HMAC-SHA1(TURN_SECRET, username))`; browsers receive only that username and credential.
+Both files use coturn's shared-secret authentication for expiring credentials. The local default is `local-turn-secret`; override `NUXT_TURN_SECRET` in `.env` if desired. The secret stays on the server. A credential issuer must produce a username such as `<expiry-unix-seconds>:<user-id>` and a credential equal to `base64(HMAC-SHA1(NUXT_TURN_SECRET, username))`; browsers receive only that username and credential.
 
 For a local browser test, generate a one-hour credential in your terminal (Node 24 loads `.env`):
 
@@ -58,7 +58,7 @@ For a local browser test, generate a one-hour credential in your terminal (Node 
 node --env-file=.env --input-type=module <<'JS'
 import { createHmac } from 'node:crypto';
 const username = `${Math.floor(Date.now() / 1000) + 3600}:local-test`;
-const credential = createHmac('sha1', process.env.TURN_SECRET || 'local-turn-secret')
+const credential = createHmac('sha1', process.env.NUXT_TURN_SECRET || 'local-turn-secret')
   .update(username).digest('base64');
 console.log(JSON.stringify({ username, credential }, null, 2));
 JS
@@ -85,13 +85,16 @@ await peer.setLocalDescription(await peer.createOffer());
 
 A `relay` candidate confirms authentication and allocation. A full data-channel test requires two peers to exchange offers, answers, and ICE candidates with `iceTransportPolicy: "relay"`; verify the selected candidate pair through `getStats()` or browser WebRTC diagnostics. Local tests are useful for credentials and relay behavior, but testing with peers on separate networks against the deployed server is still needed to check public reachability and firewall/NAT behavior.
 
-The app currently configures only Google STUN in `app/lib/file-transfer/rtc-peer.ts`. Starting coturn alone does not enable TURN for file transfers: the next integration step is a server-side credential endpoint and adding the returned TURN URLs/credentials to each peer's `iceServers`. Force relay on both peers during testing, then restore the default `all` policy so direct connections are preferred.
+The app requests `/api/rooms/:id/ice-servers` for every new or resumed peer connection. Only authenticated room members (including anonymous visitor sessions) receive credentials, and the response cannot be cached. The endpoint always returns Google STUN; when TURN is configured it also returns the TURN URLs and a credential valid for 24 hours, allowing slow large-file transfers to refresh allocations. Both outgoing and incoming signaling wait for configuration before negotiating; failed credential requests interrupt the attempt and can be retried. Direct connections remain preferred. For a full app relay test, temporarily add `iceTransportPolicy: "relay"` to `setConfiguration` in `app/lib/file-transfer/rtc-peer.ts` on both peers, then remove it afterward.
 
 For `docker-compose.dockiy.yml`, set these variables in the deployment's Compose environment (the shell or Compose `--env-file`; the app's `deploy.env` alone does not supply Compose interpolation):
 
-- `TURN_SECRET`: a separate random secret per environment, generated with `openssl rand -hex 32`.
+- `NUXT_TURN_SECRET`: a separate random secret per environment, generated with `openssl rand -hex 32`. Both coturn and Nuxt use this same value.
+- `NUXT_TURN_URLS`: comma-separated URLs, e.g. `turn:turn.chrispaganon.com:3478?transport=udp,turn:turn.chrispaganon.com:3478?transport=tcp`. For local tests, use `127.0.0.1` instead of the hostname.
 - `TURN_REALM`: a stable realm such as `turn.example.com`.
 - `TURN_EXTERNAL_IP`: the server's public IP, or `PUBLIC_IP/PRIVATE_IP` when behind NAT. Forward the listener and relay ports without changing relay port numbers.
+
+Nuxt declares private `runtimeConfig.turnSecret` and `runtimeConfig.turnUrls`, overridden by `NUXT_TURN_SECRET` and `NUXT_TURN_URLS`. The shared secret is never included in browser config or credential responses. Leave both values empty to use STUN alone; partial or invalid TURN configuration produces a configuration error.
 
 Point the TURN hostname's DNS directly at the server and allow TCP/UDP 3478 plus UDP 49160–49200 in the host/cloud firewall. The existing Traefik HTTP router does not carry TURN traffic. Production blocks private and link-local peer destinations and keeps loopback peers disabled. Both configurations currently disable TLS/DTLS; `turn:` works over UDP/TCP. For `turns:` on 5349 (or a dedicated 443 endpoint for restrictive networks), mount a valid certificate/key, enable TLS and configure its listener and firewall separately. `--no-tcp-relay` disables RFC 6062 TCP peer allocations; TURN-over-TCP clients remain supported with UDP relay allocations, as used by WebRTC.
 

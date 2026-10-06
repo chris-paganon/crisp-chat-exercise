@@ -12,7 +12,7 @@ Initial setup is implemented: two-person room and text-message schemas; BetterAu
 - Send text messages through WebSockets: client A ↔ Nuxt server ↔ client B. The server saves messages before acknowledging and forwarding them.
 - Use the same WebSocket server for WebRTC signaling and transfer coordination.
 - Transfer file bytes through native WebRTC data channels, without external file-transfer libraries.
-- Use Google's STUN service initially. Keep TURN configuration available for later integration.
+- Use Google's STUN service with optional coturn fallback and temporary credentials issued to room members.
 - Write received file chunks progressively into OPFS, with IndexedDB storing transfer metadata and checkpoints. Offer the completed file for download to the device.
 
 ## Core implementation
@@ -27,14 +27,14 @@ Initial setup is implemented: two-person room and text-message schemas; BetterAu
 ## Bonus and fallbacks
 
 - **Implemented:** Resume interrupted transfers after reconnect or reload using saved partial files and checkpoints. Allow the sender to reselect the original file when necessary. Validate all reselected file contents and use a fresh signaling attempt per resume.
-- **Pending:** Add coturn to support networks where direct WebRTC connectivity fails.
+- **Implemented, deployment validation pending:** Add coturn to support networks where direct WebRTC connectivity fails.
 - **Pending:** Add user-selected file writing or a service-worker download as alternatives when OPFS is unavailable or its quota is insufficient.
 
 ## Validation and delivery
 
 - Test chat persistence, retries, reconnects, concurrent transfers, cancellation, and interrupted sessions.
 - Verify the complete 2GB receive-and-download path on target desktop and mobile browsers with sufficient storage.
-- Test across separate networks and document connectivity limitations without TURN.
+- Test across separate networks and verify coturn relay fallback.
 - Run `pnpm lint-full` and document setup, architecture, browser coverage, and remaining limitations.
 
 ## Local file retention

@@ -7,6 +7,7 @@ import { TRANSFER_TIMEOUT_MS } from "./protocol";
 
 interface SessionOptions {
   id: string;
+  roomId: string;
   offset: number;
   sendSignal: (signal: FileSignal) => void;
   progress: (bytes: number) => void;
@@ -84,6 +85,7 @@ function createSession(options: SendSessionOptions | ReceiveSessionOptions) {
 
   const RTCPeer = createRTCPeer({
     id: options.id,
+    roomId: options.roomId,
     sender: "source" in options,
     sendSignal: options.sendSignal,
     fail,
