@@ -49,7 +49,7 @@ function onEnter(event: KeyboardEvent) {
     >
       <UiTextarea
         v-model="draft"
-        class="field-sizing-fixed min-h-0 resize-none rounded-none border-0 p-0 text-sm text-foreground shadow-none focus-visible:ring-0"
+        class="field-sizing-fixed min-h-0 resize-none rounded-none border-0 p-0 text-base text-foreground shadow-none focus-visible:ring-0"
         :disabled="disabled"
         :maxlength="MAX_CHAT_MESSAGE_LENGTH"
         placeholder="Compose your message…"
