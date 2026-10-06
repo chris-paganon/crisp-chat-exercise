@@ -1,6 +1,7 @@
 import type { FileClientEvent, FileRecordRow, FileServerEventData } from "~~/shared/types/file-transfer";
 import { isFileTerminal, MAX_CONCURRENT_TRANSFERS } from "~~/shared/types/file-transfer";
 import { findFileRecord, loadFileHistory, saveFileOffer, updateFileRecord } from "./file-records";
+import { requireRoomMemberById } from "./chat";
 
 interface TransferPeer {
   id: string;
@@ -79,6 +80,16 @@ export async function unregisterTransferPeer(peer: TransferPeer) {
 
 function createLive(record: FileRecordRow) {
   const current: LiveTransfer = { record, offset: 0 };
+  transfers.set(record.id, current);
+  waitForPeer(current);
+  return current;
+}
+
+function waitForPeer(current: LiveTransfer) {
+  // Consent can take arbitrarily long; bound readiness only after acceptance.
+  if (current.record.status === "offered" || current.timer || current.attempt) return;
+
+  const { record } = current;
   current.timer = setTimeout(() => {
     void enqueueRoomFileOperation(record.roomId, async () => {
       if (transfers.get(record.id) === current && !current.attempt) {
@@ -87,8 +98,6 @@ function createLive(record: FileRecordRow) {
       }
     }).catch(console.error);
   }, 120000);
-  transfers.set(record.id, current);
-  return current;
 }
 
 async function startQueued(roomId: string) {
@@ -128,16 +137,17 @@ export async function coordinateFileTransfer(peer: TransferPeer, event: FileClie
   } satisfies FileServerEventData);
 
   if (event.type === "file-offer") {
-    const other = [...(rooms.get(roomId) ?? [])].find(item => item.context.userId !== userId && item.context.transferReady && !item.context.transferClosed);
-    // Retrying a saved offer still works if the other side has since gone offline.
+    const room = await requireRoomMemberById(roomId, userId);
+    if (!room.operatorId) return error("An operator must join this conversation before you can offer a file.");
+
+    const receiverId = userId === room.visitorId ? room.operatorId : room.visitorId;
     const existing = await findFileRecord(roomId, event.id);
-    if (!other && !existing) return error("The other participant must have this conversation open to offer a file.");
 
     if (!existing && [...transfers.values()].filter(item => item.record.roomId === roomId).length >= 32) {
       return error("Too many pending files. Finish or cancel some transfers first.");
     }
 
-    const record = await saveFileOffer(roomId, userId, existing?.receiverId ?? other!.context.userId as string, event);
+    const record = await saveFileOffer(roomId, userId, receiverId, event);
     broadcastFileRecord(record);
     if (isFileTerminal(record.status)) return;
 
@@ -188,6 +198,7 @@ export async function coordinateFileTransfer(peer: TransferPeer, event: FileClie
           other.send({ type: "file-wake", id: event.id } satisfies FileServerEventData);
         }
       }
+      waitForPeer(live);
       await startQueued(roomId);
       break;
     }
