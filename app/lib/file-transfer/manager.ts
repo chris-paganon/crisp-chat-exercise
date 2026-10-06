@@ -363,7 +363,7 @@ export function createTransferManager(options: ManagerOptions) {
         interrupt(item, "Reconnect to resume this transfer.", false);
       }
       else {
-        update(item, { status: "waiting", message: "Waiting for the other participant or an available transfer slot." });
+        update(item, { status: "waiting", message: undefined });
       }
     }
     catch (error) {
