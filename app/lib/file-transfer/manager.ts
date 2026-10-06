@@ -1,12 +1,13 @@
 import type { FileClientEvent, FileServerEvent, FileRecord } from "~~/shared/types/file-transfer";
 import type { TransferView } from "./model";
-import type { Transfer } from "./transfer";
 import type { LocalControl } from "./recovery";
 import { isFileTerminal } from "~~/shared/types/file-transfer";
 import { nowTimestamp } from "~~/shared/utils/date";
-import { createTransfer } from "./transfer";
 import { createOutgoingTransfer } from "./outgoing-transfer";
+import { createIncomingTransfer } from "./incoming-transfer";
 import { readIndexedDbLocalControl, deleteIndexedDbLocalControl } from "./recovery";
+
+type Transfer = ReturnType<typeof createOutgoingTransfer> | ReturnType<typeof createIncomingTransfer>;
 
 interface ManagerOptions {
   roomId: string;
@@ -24,7 +25,12 @@ export function createTransferManager(options: ManagerOptions) {
   const key = (id: string) => ({ userId: options.userId(), roomId: options.roomId, id });
   const publish = () => options.changed([...transfers.values()].map(transfer => ({ ...transfer.view })));
   const transferOptions = () => ({ ...options, historyReady: () => historyReady, changed: publish });
-  const create = (view: TransferView) => createTransfer(view, transferOptions());
+
+  function createTransfer(view: TransferView) {
+    return view.direction === "outgoing"
+      ? createOutgoingTransfer(view, transferOptions())
+      : createIncomingTransfer(view, transferOptions());
+  }
 
   function restoreRecord(record: FileRecord, control?: { command: LocalControl | undefined }) {
     if (disposed || record.roomId !== options.roomId) return;
@@ -32,7 +38,7 @@ export function createTransferManager(options: ManagerOptions) {
     let transfer = transfers.get(record.id);
     const fresh = !transfer;
     if (!transfer) {
-      transfer = create({
+      transfer = createTransfer({
         ...record, direction: record.senderId === options.userId() ? "outgoing" : "incoming",
         bytes: record.status === "completed" ? record.size : 0,
         status: record.status === "accepted" ? "interrupted" : record.status, message: record.message ?? undefined,
