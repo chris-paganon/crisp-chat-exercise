@@ -8,4 +8,4 @@ docker compose --env-file deploy.env up \
   --pull always \
   --wait \
   --wait-timeout 120 \
-  db app
+  db app turn
