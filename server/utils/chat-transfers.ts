@@ -21,7 +21,7 @@ const rooms = new Map<string, Set<TransferPeer>>();
 const transfers = new Map<string, LiveTransfer>();
 const operations = new Map<string, Promise<unknown>>();
 
-export function serializeFileOperation<T>(roomId: string, work: () => Promise<T>): Promise<T> {
+export function enqueueRoomFileOperation<T>(roomId: string, work: () => Promise<T>): Promise<T> {
   const result = (operations.get(roomId) ?? Promise.resolve()).catch(() => {}).then(work);
   operations.set(roomId, result);
   void result.finally(() => {
@@ -80,7 +80,7 @@ export async function unregisterTransferPeer(peer: TransferPeer) {
 function createLive(record: FileRecord) {
   const current: LiveTransfer = { record, offset: 0 };
   current.timer = setTimeout(() => {
-    void serializeFileOperation(record.roomId, async () => {
+    void enqueueRoomFileOperation(record.roomId, async () => {
       if (transfers.get(record.id) === current && !current.attempt) {
         await pause(current, "Waiting for the other participant. Resume when both sides are ready.");
         await startQueued(record.roomId);

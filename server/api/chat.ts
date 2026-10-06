@@ -3,7 +3,7 @@ import { loadChatHistory, saveChatMessage } from "#server/utils/chat-messages";
 import { auth } from "#server/utils/auth";
 import { requireRoomMemberById } from "#server/utils/chat";
 import { chatClientEventSchema } from "#server/utils/chat-events";
-import { coordinateFileTransfer, registerTransferPeer, unregisterTransferPeer, serializeFileOperation, loadTransferHistory } from "#server/utils/chat-transfers";
+import { coordinateFileTransfer, registerTransferPeer, unregisterTransferPeer, enqueueRoomFileOperation, loadTransferHistory } from "#server/utils/chat-transfers";
 import type { FileClientEvent } from "~~/shared/types/file-transfer";
 import type { ChatServerEvent } from "~~/shared/types/chat";
 
@@ -37,7 +37,7 @@ export default defineWebSocketHandler({
     try {
       const [history, files] = await Promise.all([
         loadChatHistory(roomId),
-        serializeFileOperation(roomId, () => loadTransferHistory(roomId)),
+        enqueueRoomFileOperation(roomId, () => loadTransferHistory(roomId)),
       ]);
 
       if (peer.context.transferClosed) return;
@@ -104,7 +104,7 @@ export default defineWebSocketHandler({
 
       if (parsed.data.type !== "message" && parsed.data.type !== "ping") {
         // Enqueue before any async auth reads so socket events retain arrival order.
-        await serializeFileOperation(roomId, async () => {
+        await enqueueRoomFileOperation(roomId, async () => {
           if (!peer.context.transferClosed && await validateMembership()) {
             await coordinateFileTransfer(peer, parsed.data as FileClientEvent);
           }
@@ -137,6 +137,6 @@ export default defineWebSocketHandler({
   },
   async close(peer) {
     peer.context.transferClosed = true;
-    await serializeFileOperation(peer.context.roomId as string, () => unregisterTransferPeer(peer));
+    await enqueueRoomFileOperation(peer.context.roomId as string, () => unregisterTransferPeer(peer));
   },
 });
