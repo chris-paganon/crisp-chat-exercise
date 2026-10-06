@@ -11,6 +11,8 @@ import { verifyFileFingerprint } from "./fingerprint";
 import { readIndexedDbCheckpoint, isCheckpointExpired, saveIndexedDbLocalControl, deleteIndexedDbLocalControl } from "./recovery";
 import { getLocalFile, openResumableFileSink, removeLocalFile, touchLocalFile } from "./resumable-storage";
 
+type ResumeRequest = Extract<FileClientEvent, { type: "file-accept" | "file-resume" }>;
+
 interface TransferResources {
   source?: File;
   sink?: ResumableFileSink;
@@ -267,59 +269,12 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     const generation = resource.generation;
     update({ status: "preparing", message: undefined });
     try {
-      const saved = item.direction === "incoming" ? await readIndexedDbCheckpoint(key()) : undefined;
-      if (automatic && item.direction === "incoming" && !saved) return;
-      if (automatic && saved && isCheckpointExpired(saved)) {
-        update({ status: "interrupted", expired: true, message: "The saved partial expired after seven days. Restart receiving to continue." });
-        return;
-      }
-      if (!mobilePermission()) return;
+      const request = item.direction === "outgoing"
+        ? await prepareOutgoing(generation, file)
+        : await prepareIncoming(generation, automatic);
+      if (!request || disposed || resource.generation !== generation) return;
 
-      await resource.closing;
-      if (disposed || resource.generation !== generation) return;
-
-      if (item.direction === "outgoing") {
-        if ((file || !item.fingerprint) && !await verifySource(file ?? resource.source!)) return;
-        if (resource.pendingOffer) {
-          resource.preparing = false;
-          sendOffer();
-          return;
-        }
-        else {
-          resource.ready = send({ type: "file-resume", id, offset: 0 });
-        }
-      }
-      else {
-        if (!item.fingerprint) {
-          throw new Error("This older file offer cannot be resumed. Ask the sender to offer it again.");
-        }
-
-        if (saved && isCheckpointExpired(saved)) {
-          // Expiration reclaims data only on an explicit restart, never during history loading.
-          await removeLocalFile(key());
-          if (disposed || resource.generation !== generation) return;
-
-          update({ bytes: 0, localBytes: 0, hasLocalFile: false, expired: false });
-        }
-        const completed = await getLocalFile(key(), item.fingerprint, item.size);
-        if (completed && item.persistedStatus !== "offered") {
-          resource.file = completed;
-          item.available = true;
-          update({ status: "finishing", available: true, hasLocalFile: true });
-          send({ type: "file-finish", id });
-          return;
-        }
-        const sink = await openResumableFileSink(key(), item.size, item.fingerprint);
-        if (disposed || resource.generation !== generation) {
-          await sink.pause();
-          return;
-        }
-        resource.sink = sink;
-        item.bytes = sink.offset;
-        item.localBytes = sink.offset;
-        item.hasLocalFile = true;
-        resource.ready = send({ type: item.persistedStatus === "offered" ? "file-accept" : "file-resume", id, offset: sink.offset });
-      }
+      resource.ready = send(request);
       if (disposed || resource.generation !== generation) return;
 
       if (!resource.ready) {
@@ -342,6 +297,65 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
         }
       }
     }
+  }
+
+  async function prepareOutgoing(generation: number, file?: File): Promise<ResumeRequest | undefined> {
+    if (!mobilePermission()) return;
+
+    await resource.closing;
+    if (disposed || resource.generation !== generation) return;
+
+    if ((file || !item.fingerprint) && !await verifySource(file ?? resource.source!)) return;
+    if (resource.pendingOffer) {
+      resource.preparing = false;
+      sendOffer();
+      return;
+    }
+
+    return { type: "file-resume", id, offset: 0 };
+  }
+
+  async function prepareIncoming(generation: number, automatic: boolean): Promise<ResumeRequest | undefined> {
+    const saved = await readIndexedDbCheckpoint(key());
+    if (automatic && !saved) return;
+    if (automatic && saved && isCheckpointExpired(saved)) {
+      update({ status: "interrupted", expired: true, message: "The saved partial expired after seven days. Restart receiving to continue." });
+      return;
+    }
+    if (!mobilePermission()) return;
+
+    await resource.closing;
+    if (disposed || resource.generation !== generation) return;
+
+    if (!item.fingerprint) {
+      throw new Error("This older file offer cannot be resumed. Ask the sender to offer it again.");
+    }
+
+    if (saved && isCheckpointExpired(saved)) {
+      // Expiration reclaims data only on an explicit restart, never during history loading.
+      await removeLocalFile(key());
+      if (disposed || resource.generation !== generation) return;
+
+      update({ bytes: 0, localBytes: 0, hasLocalFile: false, expired: false });
+    }
+    const completed = await getLocalFile(key(), item.fingerprint, item.size);
+    if (completed && item.persistedStatus !== "offered") {
+      resource.file = completed;
+      item.available = true;
+      update({ status: "finishing", available: true, hasLocalFile: true });
+      send({ type: "file-finish", id });
+      return;
+    }
+    const sink = await openResumableFileSink(key(), item.size, item.fingerprint);
+    if (disposed || resource.generation !== generation) {
+      await sink.pause();
+      return;
+    }
+    resource.sink = sink;
+    item.bytes = sink.offset;
+    item.localBytes = sink.offset;
+    item.hasLocalFile = true;
+    return { type: item.persistedStatus === "offered" ? "file-accept" : "file-resume", id, offset: sink.offset };
   }
 
   function start(event: Extract<FileServerEvent, { type: "file-start" }>) {
