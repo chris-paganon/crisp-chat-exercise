@@ -2,11 +2,9 @@
 import { MessageSquare } from "lucide-vue-next";
 import ChatFileTransfer from "@/components/chat/ChatFileTransfer.vue";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
-import { useDateLabels } from "@/composables/useDateLabels";
 import { timestampMillis } from "~~/shared/utils/date";
 
 const props = defineProps<{ roomId: string; peerName: string }>();
-const { timeLabel } = useDateLabels();
 const { chat, messages: roomMessages, files } = useRoomSession(props.roomId);
 const { userId, connection, sessionEnded } = chat;
 const { messages, send, retry } = roomMessages;
@@ -123,7 +121,14 @@ async function sendMessage(body: string) {
             {{ entry.item.body }}
           </p>
           <div class="mx-1 mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-            <time :datetime="entry.item.createdAt">{{ timeLabel(entry.item.createdAt) }}</time>
+            <NuxtTime
+              :datetime="entry.item.createdAt"
+              locale="en-GB"
+              month="short"
+              day="numeric"
+              hour="2-digit"
+              minute="2-digit"
+            />
             <span v-if="entry.outgoing">{{ entry.item.status === 'sending' ? 'Sending…' : entry.item.status === 'sent' ? 'Sent' : 'Failed' }}</span>
             <button
               v-if="entry.item.status === 'failed'"
