@@ -29,7 +29,7 @@ interface TransferBehavior {
   inspectLocal?: () => Promise<void>;
   resume: () => void;
   connected: () => void;
-  createSession: (options: SessionOptions, current: () => boolean, event: TransferStart) => TransferSession & { start?: () => void };
+  createSession: (options: SessionOptions, current: () => boolean, event: TransferStart) => TransferSession;
 }
 
 interface LifecycleState {

@@ -5,7 +5,7 @@ import type { LocalControl } from "./recovery";
 import type { ResumableFileSink } from "./resumable-storage";
 import { isFileTerminal } from "~~/shared/types/file-transfer";
 import { createTransferLifecycle } from "./lifecycle";
-import { createReceiveSession } from "./receive-session";
+import { createTransferSession } from "./session";
 import { asTransferError } from "./rtc-peer";
 import { createFileDownload } from "./storage";
 import { readIndexedDbCheckpoint, isCheckpointExpired } from "./recovery";
@@ -44,14 +44,20 @@ export function createIncomingTransfer(item: TransferView, options: TransferOpti
         throw new Error("The receiving checkpoint does not match.");
       }
 
-      return createReceiveSession({ ...sessionOptions, size: item.size, sink: resource.sink, complete() {
-        if (!current()) return;
+      return createTransferSession({
+        ...sessionOptions,
+        direction: "incoming",
+        size: item.size,
+        sink: resource.sink,
+        complete() {
+          if (!current()) return;
 
-        update({ status: "finishing", available: true, localBytes: item.size, hasLocalFile: true, expired: false });
-        if (!lifecycle.send({ type: "file-finish", id, attempt: event.attempt })) {
-          lifecycle.interrupt("File received. Reconnect to confirm receipt.", false);
-        }
-      } });
+          update({ status: "finishing", available: true, localBytes: item.size, hasLocalFile: true, expired: false });
+          if (!lifecycle.send({ type: "file-finish", id, attempt: event.attempt })) {
+            lifecycle.interrupt("File received. Reconnect to confirm receipt.", false);
+          }
+        },
+      });
     },
   });
   const { state, key, update, isCurrent } = lifecycle;

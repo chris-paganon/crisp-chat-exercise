@@ -3,7 +3,7 @@ import type { TransferView } from "./model";
 import type { TransferOptions } from "./lifecycle";
 import { isFileTerminal } from "~~/shared/types/file-transfer";
 import { createTransferLifecycle } from "./lifecycle";
-import { createSendSession } from "./send-session";
+import { createTransferSession } from "./session";
 import { verifyFileFingerprint } from "./fingerprint";
 
 interface OutgoingResources {
@@ -36,11 +36,16 @@ export function createOutgoingTransfer(item: TransferView, options: TransferOpti
         throw new Error("Reselect the original file to resume.");
       }
 
-      return createSendSession({ ...sessionOptions, source: resource.source, sent() {
-        if (current()) {
-          update({ status: "finishing" });
-        }
-      } });
+      return createTransferSession({
+        ...sessionOptions,
+        direction: "outgoing",
+        source: resource.source,
+        sent() {
+          if (current()) {
+            update({ status: "finishing" });
+          }
+        },
+      });
     },
   });
   const { state, update, isCurrent } = lifecycle;

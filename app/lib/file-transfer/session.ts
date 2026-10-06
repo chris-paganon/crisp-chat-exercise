@@ -1,5 +1,8 @@
 import type { FileSignal } from "~~/shared/types/file-transfer";
+import type { FileSink } from "./storage";
 import { asTransferError, createRTCPeer } from "./rtc-peer";
+import { createFileSender } from "./data-sender";
+import { createFileReceiver } from "./data-receiver";
 import { TRANSFER_TIMEOUT_MS } from "./protocol";
 
 export interface SessionOptions {
@@ -13,29 +16,32 @@ export interface SessionOptions {
 }
 
 export interface TransferSession {
+  start?: () => void;
   receiveSignal: (signal: FileSignal) => void;
   close: () => void;
 }
 
-export interface ChannelTransfer {
+interface ChannelTransfer {
   receiveFileChannelMessage: (data: unknown) => void;
   stop: () => void;
   start?: () => Promise<void>;
 }
 
-interface ChannelLifecycle {
-  progress: (bytes: number) => void;
-  awaitCompletion: () => void;
-  fail: (error: unknown) => void;
+interface OutgoingSessionOptions extends SessionOptions {
+  direction: "outgoing";
+  source: File;
+  sent: () => void;
 }
 
-interface TransportSessionOptions extends SessionOptions {
-  initiator: boolean;
-  createChannelTransfer: (channel: RTCDataChannel, lifecycle: ChannelLifecycle) => ChannelTransfer;
+interface IncomingSessionOptions extends SessionOptions {
+  direction: "incoming";
+  size: number;
+  sink: FileSink;
+  complete: (file: File) => void;
 }
 
-/** Owns connection, channel events, timeouts, and cleanup independently of file direction. */
-export function createTransportSession(options: TransportSessionOptions) {
+/** Shared connection lifecycle with explicit sending or receiving channel setup. */
+export function createTransferSession(options: OutgoingSessionOptions | IncomingSessionOptions): TransferSession {
   let stopped = false;
   let awaitingCompletion = false;
   let transportError: Error | undefined;
@@ -79,10 +85,15 @@ export function createTransportSession(options: TransportSessionOptions) {
     options.progress(bytes);
   }
 
+  function awaitCompletion() {
+    awaitingCompletion = true;
+    activity();
+  }
+
   const RTCPeer = createRTCPeer({
     id: options.id,
     roomId: options.roomId,
-    initiator: options.initiator,
+    initiator: options.direction === "outgoing",
     sendSignal: options.sendSignal,
     fail,
     connectionLost(state) {
@@ -106,11 +117,42 @@ export function createTransportSession(options: TransportSessionOptions) {
     channel = current;
     current.binaryType = "arraybuffer";
 
-    function awaitCompletion() {
-      awaitingCompletion = true;
-      activity();
+    let transfer: ChannelTransfer;
+    if (options.direction === "outgoing") {
+      const { source, sent } = options;
+
+      function notifySent() {
+        awaitCompletion();
+        sent();
+      }
+
+      transfer = createFileSender({
+        channel: current,
+        file: source,
+        startOffset: options.offset,
+        onProgress: progress,
+        onSent: notifySent,
+      });
     }
-    const transfer = options.createChannelTransfer(current, { progress, awaitCompletion, fail });
+    else {
+      const { size, sink, complete } = options;
+
+      function notifyComplete(file: File) {
+        awaitCompletion();
+        complete(file);
+      }
+
+      transfer = createFileReceiver({
+        channel: current,
+        size,
+        sink,
+        startOffset: options.offset,
+        onProgress: progress,
+        onFinishing: awaitCompletion,
+        onComplete: notifyComplete,
+        onError: fail,
+      });
+    }
     stopTransfer = transfer.stop;
 
     current.onmessage = ({ data }) => {
@@ -148,8 +190,12 @@ export function createTransportSession(options: TransportSessionOptions) {
     };
   }
 
+  function start() {
+    void RTCPeer.start().catch(fail);
+  }
+
   return {
-    start: () => { void RTCPeer.start().catch(fail); },
+    start: options.direction === "outgoing" ? start : undefined,
     receiveSignal: RTCPeer.receiveSignal,
     close() {
       stopped = true;
