@@ -19,6 +19,8 @@ interface TransferResources {
   attempt?: string;
   ready: boolean;
   preparing: boolean;
+  pendingOffer?: boolean;
+  offerSent?: boolean;
   generation: number;
   closing: Promise<void>;
   pendingControl?: "file-cancel" | "file-decline";
@@ -42,6 +44,8 @@ export function createTransferManager(options: ManagerOptions) {
   const transfers = new Map<string, TransferView>();
   const resources = new Map<string, TransferResources>();
   let disposed = false;
+  let historyReady = false;
+  let hydrationGeneration = 0;
   const key = (id: string) => ({ userId: options.userId(), roomId: options.roomId, id });
   const publish = () => options.changed([...transfers.values()].map(item => ({ ...item })));
 
@@ -80,6 +84,7 @@ export function createTransferManager(options: ManagerOptions) {
     resource.attempt = undefined;
     resource.ready = false;
     resource.preparing = false;
+    resource.pendingOffer = false;
     const sink = resource.sink;
     resource.sink = undefined;
     resource.closing = resource.closing.then(() => sink?.pause()).catch((error) => {
@@ -164,6 +169,7 @@ export function createTransferManager(options: ManagerOptions) {
       transfers.set(item.id, item);
     }
     const resource = resourceFor(item.id);
+    resource.pendingOffer = false;
     item.version = record.version;
     item.persistedStatus = record.status;
     item.fingerprint = record.fingerprint;
@@ -237,15 +243,12 @@ export function createTransferManager(options: ManagerOptions) {
     publish();
     resource.source = file;
     resource.preparing = true;
+    resource.pendingOffer = true;
     const generation = resource.generation;
     try {
       if (!await verifySource(item, file, resource)) return;
       resource.preparing = false;
-      update(item, { status: "offering" });
-      resource.ready = send({ type: "file-offer", id: item.id, name: item.name, size: item.size, mime: item.mime, fingerprint: item.fingerprint });
-      if (!resource.ready) {
-        interrupt(item, "Reconnect to send this file offer.", false);
-      }
+      sendOffer(item);
     }
     catch (error) {
       if (resource.generation === generation) {
@@ -254,6 +257,30 @@ export function createTransferManager(options: ManagerOptions) {
           fail(item, error);
         }
       }
+    }
+  }
+
+  function waitForConnection(item: TransferView) {
+    resourceFor(item.id).ready = false;
+    update(item, { status: "waiting-connection", message: undefined });
+  }
+
+  function sendOffer(item: TransferView) {
+    const resource = resourceFor(item.id);
+    if (disposed || resource.preparing || resource.ready || !resource.pendingOffer || !item.fingerprint) return;
+
+    if (!historyReady || !options.connected()) {
+      waitForConnection(item);
+      return;
+    }
+
+    update(item, { status: "offering", message: undefined });
+    resource.ready = send({ type: "file-offer", id: item.id, name: item.name, size: item.size, mime: item.mime, fingerprint: item.fingerprint });
+    if (resource.ready) {
+      resource.offerSent = true;
+    }
+    else {
+      waitForConnection(item);
     }
   }
 
@@ -268,11 +295,12 @@ export function createTransferManager(options: ManagerOptions) {
       update(item, { status: "interrupted", needsSource: true, message: "Reselect the original file to resume." });
       return;
     }
-    if (!options.connected()) {
+    if (!historyReady || !options.connected()) {
       update(item, { message: "Reconnect to resume this transfer." });
       return;
     }
     resource.preparing = true;
+    resource.pendingOffer = item.direction === "outgoing" && item.persistedStatus === undefined;
     const generation = resource.generation;
     update(item, { status: "preparing", message: undefined });
     try {
@@ -289,8 +317,10 @@ export function createTransferManager(options: ManagerOptions) {
 
       if (item.direction === "outgoing") {
         if ((file || !item.fingerprint) && !await verifySource(item, file ?? resource.source!, resource)) return;
-        if (!item.version && item.persistedStatus === undefined) {
-          resource.ready = send({ type: "file-offer", id, name: item.name, size: item.size, mime: item.mime, fingerprint: item.fingerprint });
+        if (resource.pendingOffer) {
+          resource.preparing = false;
+          sendOffer(item);
+          return;
         }
         else {
           resource.ready = send({ type: "file-resume", id, offset: 0 });
@@ -480,11 +510,15 @@ export function createTransferManager(options: ManagerOptions) {
   }
 
   async function hydrate(records: FileRecord[]) {
+    const generation = ++hydrationGeneration;
+    historyReady = false;
     for (const record of records) {
-      if (disposed) return;
+      if (disposed || generation !== hydrationGeneration) return;
 
       try {
         const command = await readLocalControl(key(record.id));
+        if (disposed || generation !== hydrationGeneration) return;
+
         resourceFor(record.id).pendingControl = isFileTerminal(record.status) ? undefined : command;
         if (command && isFileTerminal(record.status)) {
           await deleteLocalControl(key(record.id));
@@ -493,10 +527,13 @@ export function createTransferManager(options: ManagerOptions) {
       catch {
         // DB history remains readable if local browser storage is unavailable.
       }
-      if (disposed) return;
+      if (disposed || generation !== hydrationGeneration) return;
 
       restore(record);
     }
+    if (disposed || generation !== hydrationGeneration || !options.connected()) return;
+
+    historyReady = true;
     connected();
   }
 
@@ -509,6 +546,9 @@ export function createTransferManager(options: ManagerOptions) {
             send({ type: resource.pendingControl, id: item.id });
           }
         });
+      }
+      else if (resource.pendingOffer) {
+        sendOffer(item);
       }
       else if (!isFileTerminal(item.status)) {
         void resume(item.id, undefined, true);
@@ -524,6 +564,14 @@ export function createTransferManager(options: ManagerOptions) {
     if (!item || isFileTerminal(item.status)) return;
 
     const resource = resourceFor(id);
+    // A file that has never been offered has no server record to cancel.
+    if (item.persistedStatus === undefined && !resource.offerSent) {
+      closeResources(item);
+      resource.source = undefined;
+      update(item, { status: type === "file-cancel" ? "cancelled" : "declined", needsSource: false });
+      return;
+    }
+
     resource.pendingControl = type;
     closeResources(item);
     resource.source = undefined;
@@ -580,9 +628,21 @@ export function createTransferManager(options: ManagerOptions) {
   }
 
   function disconnect() {
+    historyReady = false;
+    hydrationGeneration++;
     for (const item of transfers.values()) {
       if (!isFileTerminal(item.status)) {
-        interrupt(item, "Connection interrupted. Your saved progress is kept.");
+        const resource = resourceFor(item.id);
+        if (resource.pendingOffer) {
+          // Socket loss must not cancel local hashing or discard the selected File.
+          resource.ready = false;
+          if (!resource.preparing) {
+            waitForConnection(item);
+          }
+        }
+        else {
+          interrupt(item, "Connection interrupted. Your saved progress is kept.");
+        }
       }
     }
   }

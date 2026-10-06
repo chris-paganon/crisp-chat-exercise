@@ -1,6 +1,6 @@
 import type { FileOffer, FileEndStatus, FileLifecycle } from "~~/shared/types/file-transfer";
 
-export type TransferStatus = "verifying" | "waiting" | "offering" | "offered" | "preparing" | "connecting" | "transferring" | "finishing" | "interrupted" | FileEndStatus;
+export type TransferStatus = "verifying" | "waiting-connection" | "waiting" | "offering" | "offered" | "preparing" | "connecting" | "transferring" | "finishing" | "interrupted" | FileEndStatus;
 export interface TransferView extends FileOffer {
   direction: "incoming" | "outgoing";
   status: TransferStatus;
@@ -43,6 +43,9 @@ export function summarizeTransfers(transfers: TransferView[]): TransferSummary |
         break;
       case "waiting":
         label = "Waiting to resume or for a transfer slot…";
+        break;
+      case "waiting-connection":
+        label = "Waiting for connection…";
         break;
       case "offering":
         label = "Offering file…";

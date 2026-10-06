@@ -25,6 +25,7 @@ const label = computed(() => {
 
   switch (props.transfer.status) {
     case "verifying": return "Verifying the source file…";
+    case "waiting-connection": return "Waiting for connection…";
     case "waiting": return "Waiting for the other participant or a free transfer slot…";
     case "offering": return "Sending offer…";
     case "offered": return incoming.value ? "Wants to send you a file" : "Waiting for permission…";
