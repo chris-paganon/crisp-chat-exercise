@@ -1,4 +1,4 @@
-import type { FileClientEvent, FileRecord, FileServerEvent } from "~~/shared/types/file-transfer";
+import type { FileClientEvent, FileRecordRow, FileServerEventData } from "~~/shared/types/file-transfer";
 import { isFileTerminal, MAX_CONCURRENT_TRANSFERS } from "~~/shared/types/file-transfer";
 import { findFileRecord, loadFileHistory, saveFileOffer, updateFileRecord } from "./file-records";
 
@@ -8,7 +8,7 @@ interface TransferPeer {
   send: (data: unknown) => unknown;
 }
 interface LiveTransfer {
-  record: FileRecord;
+  record: FileRecordRow;
   sender?: TransferPeer;
   receiver?: TransferPeer;
   offset: number;
@@ -39,10 +39,10 @@ export function registerTransferPeer(peer: TransferPeer) {
   rooms.set(roomId, peers);
 }
 
-export function broadcastFileRecord(record: FileRecord) {
+export function broadcastFileRecord(record: FileRecordRow) {
   for (const peer of rooms.get(record.roomId) ?? []) {
     if (peer.context.transferReady && !peer.context.transferClosed) {
-      peer.send({ type: "file-record", record } satisfies FileServerEvent);
+      peer.send({ type: "file-record", record } satisfies FileServerEventData);
     }
   }
 }
@@ -77,7 +77,7 @@ export async function unregisterTransferPeer(peer: TransferPeer) {
   await startQueued(roomId);
 }
 
-function createLive(record: FileRecord) {
+function createLive(record: FileRecordRow) {
   const current: LiveTransfer = { record, offset: 0 };
   current.timer = setTimeout(() => {
     void enqueueRoomFileOperation(record.roomId, async () => {
@@ -112,7 +112,7 @@ async function startQueued(roomId: string) {
     current.record = await updateFileRecord(roomId, current.record.id, "accepted");
     current.attempt = crypto.randomUUID();
     broadcastFileRecord(current.record);
-    const event = { type: "file-start", id: current.record.id, offset: current.offset, attempt: current.attempt } satisfies FileServerEvent;
+    const event = { type: "file-start", id: current.record.id, offset: current.offset, attempt: current.attempt } satisfies FileServerEventData;
     // Both ends have already prepared resources before advertising readiness.
     current.receiver.send(event);
     current.sender.send(event);
@@ -125,7 +125,7 @@ export async function coordinateFileTransfer(peer: TransferPeer, event: FileClie
   const userId = peer.context.userId as string;
   const error = (message: string) => peer.send({
     type: "file-error", id: event.id, message, attempt: "attempt" in event ? event.attempt : undefined,
-  } satisfies FileServerEvent);
+  } satisfies FileServerEventData);
 
   if (event.type === "file-offer") {
     const other = [...(rooms.get(roomId) ?? [])].find(item => item.context.userId !== userId && item.context.transferReady && !item.context.transferClosed);
@@ -158,7 +158,7 @@ export async function coordinateFileTransfer(peer: TransferPeer, event: FileClie
   const owner = sender ? current?.sender : current?.receiver;
   if (owner && owner.id !== peer.id) return error("This transfer is active in another tab.");
   if (isFileTerminal(record.status)) {
-    peer.send({ type: "file-record", record } satisfies FileServerEvent);
+    peer.send({ type: "file-record", record } satisfies FileServerEventData);
     return;
   }
 
@@ -182,10 +182,10 @@ export async function coordinateFileTransfer(peer: TransferPeer, event: FileClie
         live.receiver = peer;
         live.offset = event.offset;
       }
-      peer.send({ type: "file-waiting", id: event.id } satisfies FileServerEvent);
+      peer.send({ type: "file-waiting", id: event.id } satisfies FileServerEventData);
       for (const other of rooms.get(roomId) ?? []) {
         if (other.context.userId !== userId && other.context.transferReady && !other.context.transferClosed) {
-          other.send({ type: "file-wake", id: event.id } satisfies FileServerEvent);
+          other.send({ type: "file-wake", id: event.id } satisfies FileServerEventData);
         }
       }
       await startQueued(roomId);

@@ -1,5 +1,6 @@
 import type { FileClientEvent, FileServerEvent, FileSignal, FileRecord } from "~~/shared/types/file-transfer";
 import { isFileTerminal } from "~~/shared/types/file-transfer";
+import { nowTimestamp } from "~~/shared/utils/date";
 import type { TransferView } from "./model";
 import type { TransferSession } from "./session";
 import type { ResumableFileSink } from "./resumable-storage";
@@ -163,13 +164,14 @@ export function createTransferManager(options: ManagerOptions) {
     if (!item) {
       item = {
         ...record, direction: record.senderId === options.userId() ? "outgoing" : "incoming",
-        bytes: record.status === "completed" ? record.size : 0, createdAt: record.createdAt.getTime(),
+        bytes: record.status === "completed" ? record.size : 0,
         status: record.status === "accepted" ? "interrupted" : record.status, message: record.message ?? undefined,
       };
       transfers.set(item.id, item);
     }
     const resource = resourceFor(item.id);
     resource.pendingOffer = false;
+    item.createdAt = record.createdAt;
     item.version = record.version;
     item.persistedStatus = record.status;
     item.fingerprint = record.fingerprint;
@@ -234,7 +236,7 @@ export function createTransferManager(options: ManagerOptions) {
 
     const item: TransferView = {
       id: crypto.randomUUID(), name: file.name, size: file.size, mime: file.type,
-      direction: "outgoing", status: "verifying", bytes: 0, createdAt: Date.now(),
+      direction: "outgoing", status: "verifying", bytes: 0, createdAt: nowTimestamp(),
     };
     const resource = resourceFor(item.id);
     if (!mobilePermission(resource)) return;

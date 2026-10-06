@@ -1,11 +1,11 @@
-import type { FileOffer, FileEndStatus, FileLifecycle } from "~~/shared/types/file-transfer";
+import type { FileOffer, FileEndStatus, FileLifecycle, FileRecord } from "~~/shared/types/file-transfer";
 
 export type TransferStatus = "verifying" | "waiting-connection" | "waiting" | "offering" | "offered" | "preparing" | "connecting" | "transferring" | "finishing" | "interrupted" | FileEndStatus;
 export interface TransferView extends FileOffer {
   direction: "incoming" | "outgoing";
   status: TransferStatus;
   bytes: number;
-  createdAt: number;
+  createdAt: FileRecord["createdAt"];
   message?: string;
   version?: number;
   available?: boolean;

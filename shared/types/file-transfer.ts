@@ -1,4 +1,5 @@
 import type { fileTransfer } from "~~/server/db/schema/chat";
+import type { JsonSerialized } from "./json";
 
 export interface FileOffer {
   id: string;
@@ -14,7 +15,8 @@ export type FileLifecycle = "offered" | "accepted" | "interrupted" | FileEndStat
 export const isFileTerminal = (status: string) => ["completed", "declined", "cancelled", "failed"].includes(status);
 export const MAX_CONCURRENT_TRANSFERS = 3;
 
-export type FileRecord = typeof fileTransfer.$inferSelect;
+export type FileRecordRow = typeof fileTransfer.$inferSelect;
+export type FileRecord = JsonSerialized<FileRecordRow>;
 
 export type FileSignal
   = | { description: { type: "offer" | "answer"; sdp: string } }
@@ -28,9 +30,12 @@ export type FileClientEvent
     | { type: "file-fail"; id: string; attempt?: string; message: string }
     | { type: "file-signal"; id: string; attempt: string; signal: FileSignal };
 
-export type FileServerEvent
-  = | { type: "file-record"; record: FileRecord }
+/** Server values before the WebSocket transport serializes them as JSON. */
+export type FileServerEventData
+  = | { type: "file-record"; record: FileRecordRow }
     | { type: "file-start"; id: string; offset: number; attempt: string }
     | { type: "file-waiting" | "file-wake"; id: string }
     | { type: "file-error"; id: string; message: string; attempt?: string }
     | { type: "file-signal"; id: string; attempt: string; signal: FileSignal };
+
+export type FileServerEvent = JsonSerialized<FileServerEventData>;

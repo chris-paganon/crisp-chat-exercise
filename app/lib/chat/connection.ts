@@ -69,9 +69,8 @@ export function createChatConnection(roomId: string) {
     }
 
     try {
-      // JSON serializes dates as strings; restore them at the WebSocket boundary.
-      const event = JSON.parse(incoming.data, (key, value) =>
-        (key === "createdAt" || key === "readAt" || key === "updatedAt") && typeof value === "string" ? new Date(value) : value) as ChatServerEvent;
+      // Trust the backend contract and retain JSON's ISO timestamp strings.
+      const event = JSON.parse(incoming.data) as ChatServerEvent;
 
       if (event.type === "ready") {
         userId.value = event.userId;

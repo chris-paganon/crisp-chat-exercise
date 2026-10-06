@@ -5,7 +5,7 @@ import { requireRoomMemberById } from "#server/utils/chat";
 import { chatClientEventSchema } from "#server/utils/chat-events";
 import { coordinateFileTransfer, registerTransferPeer, unregisterTransferPeer, enqueueRoomFileOperation, loadTransferHistory } from "#server/utils/chat-transfers";
 import type { FileClientEvent } from "~~/shared/types/file-transfer";
-import type { ChatServerEvent } from "~~/shared/types/chat";
+import type { ChatServerEventData } from "~~/shared/types/chat";
 
 export default defineWebSocketHandler({
   async upgrade(request) {
@@ -47,7 +47,7 @@ export default defineWebSocketHandler({
         userId: peer.context.userId as string,
         messages: history,
         files,
-      } satisfies ChatServerEvent);
+      } satisfies ChatServerEventData);
     }
     catch (error) {
       console.error("Failed to load chat history.", error);
@@ -78,7 +78,7 @@ export default defineWebSocketHandler({
           type: isFileEvent ? "file-error" : "error",
           id: id ?? "",
           message: isFileEvent ? "Invalid file-transfer event." : "Enter a message of 1–10,000 characters.",
-        } satisfies ChatServerEvent);
+        } satisfies ChatServerEventData);
         return;
       }
 
@@ -93,7 +93,7 @@ export default defineWebSocketHandler({
             type: "error",
             message: "Your session ended. Reload to sign in again.",
             fatal: true,
-          } satisfies ChatServerEvent);
+          } satisfies ChatServerEventData);
           peer.close(1008, "Session ended.");
           return false;
         }
@@ -114,13 +114,13 @@ export default defineWebSocketHandler({
       if (!await validateMembership()) return;
 
       if (parsed.data.type === "ping") {
-        peer.send({ type: "pong" } satisfies ChatServerEvent);
+        peer.send({ type: "pong" } satisfies ChatServerEventData);
         return;
       }
 
       const record = await saveChatMessage(roomId, userId, parsed.data.id, parsed.data.body);
 
-      const event = { type: "message", message: record } satisfies ChatServerEvent;
+      const event = { type: "message", message: record } satisfies ChatServerEventData;
       peer.send(event);
 
       // CrossWS's Node adapter treats published objects as binary frames.
@@ -132,7 +132,7 @@ export default defineWebSocketHandler({
         type: isFileEvent ? "file-error" : "error",
         id: id ?? "",
         message: isFileEvent ? "File coordination failed. Please try again." : "Message couldn't be sent. Please try again.",
-      } satisfies ChatServerEvent);
+      } satisfies ChatServerEventData);
     }
   },
   async close(peer) {

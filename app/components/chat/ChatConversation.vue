@@ -3,6 +3,7 @@ import { MessageSquare } from "lucide-vue-next";
 import ChatFileTransfer from "@/components/chat/ChatFileTransfer.vue";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 import { timeLabel } from "@/lib/date";
+import { timestampMillis } from "~~/shared/utils/date";
 
 const props = defineProps<{ roomId: string; peerName: string }>();
 const { chat, messages: roomMessages, files } = useRoomSession(props.roomId);
@@ -33,10 +34,10 @@ onBeforeUnmount(unsubscribeHistory);
 
 const sortedItems = computed(() => [
   ...messages.value.map(item => ({
-    kind: "message" as const, item, createdAt: item.createdAt.getTime(), outgoing: item.senderId === userId.value,
+    kind: "message" as const, item, createdAt: timestampMillis(item.createdAt), outgoing: item.senderId === userId.value,
   })),
   ...transfers.value.map(item => ({
-    kind: "file" as const, item, createdAt: item.createdAt, outgoing: item.direction === "outgoing",
+    kind: "file" as const, item, createdAt: timestampMillis(item.createdAt), outgoing: item.direction === "outgoing",
   })),
 ].sort((a, b) => a.createdAt - b.createdAt || a.item.id.localeCompare(b.item.id)));
 
@@ -121,7 +122,7 @@ async function sendMessage(body: string) {
             {{ entry.item.body }}
           </p>
           <div class="mx-1 mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-            <time :datetime="entry.item.createdAt.toISOString()">{{ timeLabel(entry.item.createdAt) }}</time>
+            <time :datetime="entry.item.createdAt">{{ timeLabel(entry.item.createdAt) }}</time>
             <span v-if="entry.outgoing">{{ entry.item.status === 'sending' ? 'Sending…' : entry.item.status === 'sent' ? 'Sent' : 'Failed' }}</span>
             <button
               v-if="entry.item.status === 'failed'"

@@ -2,6 +2,7 @@ import { ref, watch } from "vue";
 import type { ChatConnection } from "./connection";
 import type { ChatMessage } from "~~/shared/types/chat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
+import { nowTimestamp } from "~~/shared/utils/date";
 
 interface DisplayMessage extends ChatMessage {
   status: "sending" | "sent" | "failed";
@@ -93,7 +94,7 @@ export function createChatMessages(roomId: string, chat: ChatConnection) {
       roomId,
       senderId: userId.value,
       body: text,
-      createdAt: new Date(),
+      createdAt: nowTimestamp(),
       readAt: null,
       status: "sending",
     };
