@@ -21,6 +21,9 @@ export function createOutgoingTransfer(item: TransferView, options: TransferOpti
     offerAcknowledged() {
       resource.pendingOffer = false;
     },
+    requestPreparing() {
+      resource.pendingOffer = item.persistedStatus === undefined;
+    },
     closeResources(previous) {
       resource.pendingOffer = false;
       return previous;
@@ -110,7 +113,6 @@ export function createOutgoingTransfer(item: TransferView, options: TransferOpti
     }
 
     await lifecycle.request("file-resume", async (generation) => {
-      resource.pendingOffer = item.persistedStatus === undefined;
       if (!lifecycle.requestConsent()) return;
 
       await state.closing;
@@ -128,8 +130,8 @@ export function createOutgoingTransfer(item: TransferView, options: TransferOpti
   }
 
   function finish(record: FileRecord) {
-    lifecycle.finish(record);
     resource.source = undefined;
+    lifecycle.finish(record);
   }
 
   function connected() {
@@ -142,9 +144,10 @@ export function createOutgoingTransfer(item: TransferView, options: TransferOpti
   }
 
   function stop() {
-    if (lifecycle.stop("file-cancel", resource.offerSent)) {
-      resource.source = undefined;
-    }
+    if (isFileTerminal(item.status)) return;
+
+    resource.source = undefined;
+    lifecycle.stop("file-cancel", resource.offerSent);
   }
 
   function disconnect() {

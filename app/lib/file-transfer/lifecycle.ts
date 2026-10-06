@@ -22,6 +22,7 @@ type TransferRequest<Event> = Extract<Event, { type: "file-accept" | "file-resum
 interface TransferBehavior {
   needsSource?: () => boolean;
   offerAcknowledged?: () => void;
+  requestPreparing?: () => void;
   // Detach resources immediately, then queue their cleanup behind the previous attempt.
   closeResources: (previous: Promise<void>) => Promise<void>;
   finish: (record: FileRecord) => void;
@@ -183,6 +184,7 @@ export function createTransferLifecycle<Event extends FileClientEvent>(item: Tra
       return;
     }
     state.preparing = true;
+    behavior.requestPreparing?.();
     const generation = state.generation;
     update({ status: "preparing", message: undefined });
     try {
