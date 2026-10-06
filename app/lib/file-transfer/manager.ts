@@ -98,6 +98,10 @@ export function createTransferManager(options: ManagerOptions) {
     await transfer.offer(file);
   }
 
+  async function accept(id: string) {
+    await transfers.get(id)?.accept();
+  }
+
   async function resume(id: string, file?: File, automatic = false) {
     await transfers.get(id)?.resume(file, automatic);
   }
@@ -140,5 +144,5 @@ export function createTransferManager(options: ManagerOptions) {
     }
   }
 
-  return { hydrate, restore, connected, offer, accept: resume, resume, receiveServerEvent, stop, download, remove, disconnect, dispose };
+  return { hydrate, restore, connected, offer, accept, resume, receiveServerEvent, stop, download, remove, disconnect, dispose };
 }

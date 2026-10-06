@@ -11,7 +11,7 @@ import { verifyFileFingerprint } from "./fingerprint";
 import { readIndexedDbCheckpoint, isCheckpointExpired, saveIndexedDbLocalControl, deleteIndexedDbLocalControl } from "./recovery";
 import { getLocalFile, openResumableFileSink, removeLocalFile, touchLocalFile } from "./resumable-storage";
 
-type ResumeRequest = Extract<FileClientEvent, { type: "file-accept" | "file-resume" }>;
+type TransferRequest = Extract<FileClientEvent, { type: "file-accept" | "file-resume" }>;
 
 interface TransferResources {
   source?: File;
@@ -254,17 +254,35 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     }
   }
 
+  async function accept() {
+    if (item.direction !== "incoming" || item.persistedStatus !== "offered") return;
+
+    await requestTransfer("file-accept");
+  }
+
   async function resume(file?: File, automatic = false) {
+    // An interrupted acceptance still needs consent before the first transfer.
+    if (item.direction === "incoming" && item.persistedStatus === "offered") {
+      if (!automatic) {
+        await accept();
+      }
+      return;
+    }
+
+    await requestTransfer("file-resume", file, automatic);
+  }
+
+  // Acceptance and resumption share resource preparation and request bookkeeping.
+  async function requestTransfer(type: TransferRequest["type"], file?: File, automatic = false) {
     if (disposed || isFileTerminal(item.status)) return;
 
     if (resource.preparing || resource.requestSent || resource.session || resource.pendingControl) return;
-    if (item.direction === "incoming" && item.persistedStatus === "offered" && automatic) return;
     if (item.direction === "outgoing" && !file && !resource.source) {
       update({ status: "interrupted", needsSource: true, message: "Reselect the original file to resume." });
       return;
     }
     if (!options.historyReady() || !options.connected()) {
-      update({ message: "Reconnect to resume this transfer." });
+      update({ message: type === "file-accept" ? "Reconnect to accept this file." : "Reconnect to resume this transfer." });
       return;
     }
     resource.preparing = true;
@@ -274,14 +292,14 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     try {
       const request = item.direction === "outgoing"
         ? await prepareOutgoing(generation, file)
-        : await prepareIncoming(generation, automatic);
+        : await prepareIncoming(generation, type, automatic);
       if (!request || !isCurrent(generation)) return;
 
       resource.requestSent = send(request);
       if (!isCurrent(generation)) return;
 
       if (!resource.requestSent) {
-        interrupt("Reconnect to resume this transfer.", false);
+        interrupt(type === "file-accept" ? "Reconnect to accept this file." : "Reconnect to resume this transfer.", false);
       }
       else {
         update({ status: "waiting", message: undefined });
@@ -302,7 +320,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     }
   }
 
-  async function prepareOutgoing(generation: number, file?: File): Promise<ResumeRequest | undefined> {
+  async function prepareOutgoing(generation: number, file?: File): Promise<TransferRequest | undefined> {
     if (!mobilePermission()) return;
 
     await resource.closing;
@@ -318,7 +336,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     return { type: "file-resume", id, offset: 0 };
   }
 
-  async function prepareIncoming(generation: number, automatic: boolean): Promise<ResumeRequest | undefined> {
+  async function prepareIncoming(generation: number, type: TransferRequest["type"], automatic: boolean): Promise<TransferRequest | undefined> {
     const saved = await readIndexedDbCheckpoint(key());
     if (automatic && !saved) return;
     if (automatic && saved && isCheckpointExpired(saved)) {
@@ -342,7 +360,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       update({ bytes: 0, localBytes: 0, hasLocalFile: false, expired: false });
     }
     const completed = await getLocalFile(key(), item.fingerprint, item.size);
-    if (completed && item.persistedStatus !== "offered") {
+    if (completed && type === "file-resume") {
       update({ status: "finishing", available: true, hasLocalFile: true });
       send({ type: "file-finish", id });
       return;
@@ -356,7 +374,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     item.bytes = sink.offset;
     item.localBytes = sink.offset;
     item.hasLocalFile = true;
-    return { type: item.persistedStatus === "offered" ? "file-accept" : "file-resume", id, offset: sink.offset };
+    return { type, id, offset: sink.offset };
   }
 
   function start(event: Extract<FileServerEvent, { type: "file-start" }>) {
@@ -443,7 +461,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
         }
         break;
       case "file-wake":
-        void resume(undefined, true);
+        resumeIfNeeded();
         break;
       case "file-waiting":
         if (resource.requestSent) {
@@ -476,6 +494,14 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     }
   }
 
+  function resumeIfNeeded() {
+    if (disposed || isFileTerminal(item.status)) return;
+    if (resource.preparing || resource.requestSent || resource.session || resource.pendingControl) return;
+    if (item.direction === "incoming" && item.persistedStatus === "offered") return;
+
+    void resume(undefined, true);
+  }
+
   function connected() {
     if (resource.pendingControl) {
       void (resource.controlSaving ?? Promise.resolve()).then(() => {
@@ -488,7 +514,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       sendOffer();
     }
     else if (!isFileTerminal(item.status)) {
-      void resume(undefined, true);
+      resumeIfNeeded();
     }
     else if (item.status === "completed") {
       void inspectLocal();
@@ -582,7 +608,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
   }
 
   return {
-    view: item, restore, restoreControl, requestConsent: mobilePermission, offer, resume,
+    view: item, restore, restoreControl, requestConsent: mobilePermission, offer, accept, resume,
     receiveServerEvent, connected, stop, download, remove, disconnect, dispose,
   };
 }
