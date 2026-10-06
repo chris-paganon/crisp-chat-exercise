@@ -94,7 +94,7 @@ function onEnter(event: KeyboardEvent) {
         </UiButton>
       </div>
     </form>
-    <p class="mt-2 text-center text-xs text-muted-foreground">
+    <p class="mt-2 hidden text-center text-xs text-muted-foreground sm:block">
       Enter to send · Shift + Enter for a new line
     </p>
   </div>

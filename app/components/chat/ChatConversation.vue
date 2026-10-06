@@ -75,12 +75,12 @@ async function sendMessage(body: string) {
 
 <template>
   <section
-    class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     aria-label="Chat messages"
   >
     <p
-      class="shrink-0 px-4 py-2.5 text-center text-xs"
-      :class="connection === 'connected' ? 'bg-chart-2/10 text-chart-2' : 'bg-accent text-muted-foreground'"
+      v-if="connection !== 'connected'"
+      class="absolute inset-x-0 top-0 z-10 bg-accent px-4 py-2.5 text-center text-xs text-muted-foreground shadow-sm"
       role="status"
     >
       {{ statusLabel }}

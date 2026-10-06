@@ -34,7 +34,7 @@ const label = computed(() => {
     case "transferring": return incoming.value ? "Receiving…" : "Sending…";
     case "finishing": return "Confirming receipt…";
     case "interrupted": return "Transfer interrupted";
-    case "completed": return incoming.value ? (props.transfer.available ? "Ready to download" : "Received · local file unavailable") : "Received by recipient";
+    case "completed": return incoming.value ? (props.transfer.available ? "Ready to download" : "Received · local file deleted") : "Received by recipient";
     case "declined": return "File declined";
     case "cancelled": return "Transfer cancelled";
     case "failed": return "Transfer failed";
@@ -109,26 +109,13 @@ function sizeLabel(bytes: number) {
       v-if="active"
       class="mt-2 text-xs text-muted-foreground"
     >
-      Keep this page open until the transfer finishes. You can close the chat or switch conversations.
-    </p>
-    <p
-      v-if="incoming && transfer.status === 'completed' && transfer.available"
-      class="mt-2 text-xs text-muted-foreground"
-    >
-      This file is saved in this browser for seven days since its last download. Remove the local copy to free storage.
+      Keep this page open until the transfer finishes.
     </p>
     <p
       v-if="transfer.status === 'interrupted'"
       class="mt-2 text-xs text-muted-foreground"
     >
       Saved progress is kept in this browser. Both participants must be online to resume.
-    </p>
-    <p
-      v-if="transfer.expired"
-      class="mt-2 text-xs text-muted-foreground"
-    >
-      This local copy expired after seven days without transfer activity or a download.
-      Remove it to free storage{{ transfer.status === 'interrupted' ? ', or restart receiving' : '' }}.
     </p>
     <div class="mt-3 flex flex-wrap gap-2">
       <input

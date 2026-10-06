@@ -42,9 +42,12 @@ const mobileConversation = ref(Boolean(selectedId.value));
           </UiButton>
           <span class="grid size-9 shrink-0 place-items-center rounded-full border bg-muted text-muted-foreground">V</span>
           <div class="min-w-0">
-            <h2 class="truncate text-base font-medium">
-              {{ selected.title }}
-            </h2>
+            <div class="flex items-center gap-2">
+              <ChatConnectionDot :room-id="selected.id" />
+              <h2 class="truncate text-base font-medium">
+                {{ selected.title }}
+              </h2>
+            </div>
           </div>
         </header>
         <ChatConversation

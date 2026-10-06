@@ -69,20 +69,21 @@ useIntervalFn(async () => {
       <section
         v-if="open"
         id="visitor-conversation"
-        class="pointer-events-auto mb-3 flex h-[min(36.875rem,calc(100dvh-7.25rem))] w-full flex-col overflow-hidden rounded-xl border bg-background text-foreground shadow-xl sm:mb-4"
+        class="pointer-events-auto mb-3 flex h-[min(40rem,calc(100dvh-6rem))] w-full flex-col overflow-hidden rounded-xl border bg-background text-foreground shadow-xl sm:mb-4"
         aria-label="Support conversation"
       >
-        <header class="mx-4 flex shrink-0 items-center gap-3 border-b pt-5 pb-4">
+        <header class="mx-4 flex shrink-0 items-center gap-3 border-b pt-3 pb-2 sm:pt-5 sm:pb-4">
           <div class="grid size-10 shrink-0 place-items-center rounded-full bg-primary bg-linear-to-b from-primary-foreground/20 to-transparent">
             <ChatCrispLogo compact />
           </div>
-          <div class="min-w-0">
+          <div class="flex min-w-0 items-center gap-2">
             <h2 class="truncate text-sm font-medium">
               {{ room?.operatorName ? `Chat with ${room.operatorName}` : "Questions? Chat with us." }}
             </h2>
-            <p class="mt-1 text-xs text-muted-foreground">
-              {{ room ? "Your personal conversation" : "A little help goes a long way" }}
-            </p>
+            <ChatConnectionDot
+              v-if="room"
+              :room-id="room.id"
+            />
           </div>
           <UiButton
             variant="ghost"
