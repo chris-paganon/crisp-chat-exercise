@@ -1,6 +1,6 @@
 import { fingerprintFile, hashBytes } from "./fingerprint";
 import { BATCH_BYTES } from "./protocol";
-import { localTransferKey, localTransferName, readCheckpoint, saveCheckpoint } from "./recovery";
+import { localTransferKey, localTransferName, readIndexedDbCheckpoint, saveIndexedDbCheckpoint } from "./recovery";
 import type { LocalTransferKey, TransferCheckpoint } from "./recovery";
 
 interface SyncFileHandle {
@@ -50,7 +50,7 @@ async function checkpoint(completed = false) {
 
   handle.flush();
   const next = { ...record, bytes: written, tailHash: await tailHash(), completed, updatedAt: Date.now() };
-  await saveCheckpoint(next);
+  await saveIndexedDbCheckpoint(next);
   record = next;
   return written;
 }
@@ -70,7 +70,7 @@ async function execute(command: StorageCommand) {
         throw new Error("This browser cannot resume large files. Use a browser with OPFS worker access over HTTPS.");
       }
       handle = await syncFile.createSyncAccessHandle();
-      const saved = await readCheckpoint(command.key);
+      const saved = await readIndexedDbCheckpoint(command.key);
       expectedSize = command.size;
       written = saved?.bytes ?? 0;
       if (saved && (saved.fingerprint !== command.fingerprint || written > expectedSize
@@ -111,7 +111,7 @@ async function execute(command: StorageCommand) {
       if (await fingerprintFile(file) !== record.fingerprint) {
         throw new Error("Received file verification failed. Remove the local file and send it again.");
       }
-      await saveCheckpoint({ ...record, completed: true, updatedAt: Date.now() });
+      await saveIndexedDbCheckpoint({ ...record, completed: true, updatedAt: Date.now() });
       return file;
     }
     case "pause":

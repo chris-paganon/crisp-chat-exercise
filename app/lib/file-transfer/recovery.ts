@@ -19,73 +19,73 @@ export const isCheckpointExpired = (record: TransferCheckpoint, now = Date.now()
 export const localTransferKey = (key: LocalTransferKey) => JSON.stringify([key.userId, key.roomId, key.id]);
 // A flat filename cannot escape the OPFS transfer directory.
 export const localTransferName = (key: LocalTransferKey) => encodeURIComponent(localTransferKey(key));
-let database: Promise<IDBDatabase> | undefined;
+let indexedDbPromise: Promise<IDBDatabase> | undefined;
 
-function openDatabase() {
-  database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open("crisp-file-transfers", 2);
-    request.onupgradeneeded = () => {
-      for (const name of ["checkpoints", "commands"]) {
-        if (!request.result.objectStoreNames.contains(name)) {
-          request.result.createObjectStore(name, { keyPath: "key" });
+function openIndexedDb() {
+  indexedDbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
+    const indexedDbRequest = indexedDB.open("crisp-file-transfers", 2);
+    indexedDbRequest.onupgradeneeded = () => {
+      for (const indexedDbStoreName of ["checkpoints", "commands"]) {
+        if (!indexedDbRequest.result.objectStoreNames.contains(indexedDbStoreName)) {
+          indexedDbRequest.result.createObjectStore(indexedDbStoreName, { keyPath: "key" });
         }
       }
     };
-    request.onsuccess = () => {
-      const db = request.result;
-      db.onversionchange = () => {
-        db.close();
-        database = undefined;
+    indexedDbRequest.onsuccess = () => {
+      const indexedDb = indexedDbRequest.result;
+      indexedDb.onversionchange = () => {
+        indexedDb.close();
+        indexedDbPromise = undefined;
       };
-      resolve(db);
+      resolve(indexedDb);
     };
-    request.onerror = () => {
-      database = undefined;
-      reject(request.error ?? new Error("Cannot open transfer checkpoints."));
+    indexedDbRequest.onerror = () => {
+      indexedDbPromise = undefined;
+      reject(indexedDbRequest.error ?? new Error("Cannot open transfer checkpoints."));
     };
-    request.onblocked = () => {
-      database = undefined;
+    indexedDbRequest.onblocked = () => {
+      indexedDbPromise = undefined;
       reject(new Error("Close other tabs to update transfer storage."));
     };
   });
-  return database;
+  return indexedDbPromise;
 }
 
-async function transaction<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>, storeName = "checkpoints"): Promise<T> {
-  const db = await openDatabase();
+async function runIndexedDbTransaction<T>(mode: IDBTransactionMode, work: (indexedDbStore: IDBObjectStore) => IDBRequest<T>, indexedDbStoreName = "checkpoints"): Promise<T> {
+  const indexedDb = await openIndexedDb();
   return new Promise<T>((resolve, reject) => {
-    const tx = db.transaction(storeName, mode, { durability: "strict" });
-    const request = work(tx.objectStore(storeName));
+    const indexedDbTransaction = indexedDb.transaction(indexedDbStoreName, mode, { durability: "strict" });
+    const indexedDbRequest = work(indexedDbTransaction.objectStore(indexedDbStoreName));
     // Request success alone does not mean the transaction has committed.
-    tx.oncomplete = () => resolve(request.result);
-    tx.onabort = () => reject(tx.error ?? request.error ?? new Error("Cannot save transfer checkpoint."));
-    tx.onerror = () => reject(tx.error ?? request.error ?? new Error("Transfer storage failed."));
+    indexedDbTransaction.oncomplete = () => resolve(indexedDbRequest.result);
+    indexedDbTransaction.onabort = () => reject(indexedDbTransaction.error ?? indexedDbRequest.error ?? new Error("Cannot save transfer checkpoint."));
+    indexedDbTransaction.onerror = () => reject(indexedDbTransaction.error ?? indexedDbRequest.error ?? new Error("Transfer storage failed."));
   });
 }
 
-export function readCheckpoint(key: LocalTransferKey): Promise<TransferCheckpoint | undefined> {
-  return transaction("readonly", store => store.get(localTransferKey(key)));
+export function readIndexedDbCheckpoint(key: LocalTransferKey): Promise<TransferCheckpoint | undefined> {
+  return runIndexedDbTransaction("readonly", indexedDbStore => indexedDbStore.get(localTransferKey(key)));
 }
 
-export async function saveCheckpoint(record: TransferCheckpoint) {
-  await transaction("readwrite", store => store.put(record));
+export async function saveIndexedDbCheckpoint(record: TransferCheckpoint) {
+  await runIndexedDbTransaction("readwrite", indexedDbStore => indexedDbStore.put(record));
 }
 
-export async function deleteCheckpoint(key: LocalTransferKey) {
-  await transaction("readwrite", store => store.delete(localTransferKey(key)));
+export async function deleteIndexedDbCheckpoint(key: LocalTransferKey) {
+  await runIndexedDbTransaction("readwrite", indexedDbStore => indexedDbStore.delete(localTransferKey(key)));
 }
 
 export type LocalControl = "file-cancel" | "file-decline";
 
-export async function readLocalControl(key: LocalTransferKey): Promise<LocalControl | undefined> {
-  const record = await transaction<{ key: string; command: LocalControl } | undefined>("readonly", store => store.get(localTransferKey(key)), "commands");
+export async function readIndexedDbLocalControl(key: LocalTransferKey): Promise<LocalControl | undefined> {
+  const record = await runIndexedDbTransaction<{ key: string; command: LocalControl } | undefined>("readonly", indexedDbStore => indexedDbStore.get(localTransferKey(key)), "commands");
   return record?.command;
 }
 
-export async function saveLocalControl(key: LocalTransferKey, command: LocalControl) {
-  await transaction("readwrite", store => store.put({ key: localTransferKey(key), command }), "commands");
+export async function saveIndexedDbLocalControl(key: LocalTransferKey, command: LocalControl) {
+  await runIndexedDbTransaction("readwrite", indexedDbStore => indexedDbStore.put({ key: localTransferKey(key), command }), "commands");
 }
 
-export async function deleteLocalControl(key: LocalTransferKey) {
-  await transaction("readwrite", store => store.delete(localTransferKey(key)), "commands");
+export async function deleteIndexedDbLocalControl(key: LocalTransferKey) {
+  await runIndexedDbTransaction("readwrite", indexedDbStore => indexedDbStore.delete(localTransferKey(key)), "commands");
 }

@@ -9,7 +9,7 @@ import { asTransferError } from "./rtc-peer";
 import { createReceiveSession, createSendSession } from "./session";
 import { createFileDownload } from "./storage";
 import { fingerprintFile } from "./fingerprint";
-import { readCheckpoint, isCheckpointExpired, readLocalControl, saveLocalControl, deleteLocalControl } from "./recovery";
+import { readIndexedDbCheckpoint, isCheckpointExpired, readIndexedDbLocalControl, saveIndexedDbLocalControl, deleteIndexedDbLocalControl } from "./recovery";
 import { getLocalFile, openResumableFileSink, removeLocalFile, touchLocalFile } from "./resumable-storage";
 
 interface TransferResources {
@@ -135,7 +135,7 @@ export function createTransferManager(options: ManagerOptions) {
     const resource = resourceFor(item.id);
     const generation = resource.generation;
     try {
-      const saved = await readCheckpoint(key(item.id));
+      const saved = await readIndexedDbCheckpoint(key(item.id));
       const file = await getLocalFile(key(item.id), item.fingerprint ?? "", item.size);
       if (disposed || resource.generation !== generation) return;
 
@@ -306,7 +306,7 @@ export function createTransferManager(options: ManagerOptions) {
     const generation = resource.generation;
     update(item, { status: "preparing", message: undefined });
     try {
-      const saved = item.direction === "incoming" ? await readCheckpoint(key(id)) : undefined;
+      const saved = item.direction === "incoming" ? await readIndexedDbCheckpoint(key(id)) : undefined;
       if (automatic && item.direction === "incoming" && !saved) return;
       if (automatic && saved && isCheckpointExpired(saved)) {
         update(item, { status: "interrupted", expired: true, message: "The saved partial expired after seven days. Restart receiving to continue." });
@@ -502,7 +502,7 @@ export function createTransferManager(options: ManagerOptions) {
     const resource = resourceFor(item.id);
     await resource.controlSaving;
     try {
-      await deleteLocalControl(key(item.id));
+      await deleteIndexedDbLocalControl(key(item.id));
     }
     catch (error) {
       if (!disposed) {
@@ -518,12 +518,12 @@ export function createTransferManager(options: ManagerOptions) {
       if (disposed || generation !== hydrationGeneration) return;
 
       try {
-        const command = await readLocalControl(key(record.id));
+        const command = await readIndexedDbLocalControl(key(record.id));
         if (disposed || generation !== hydrationGeneration) return;
 
         resourceFor(record.id).pendingControl = isFileTerminal(record.status) ? undefined : command;
         if (command && isFileTerminal(record.status)) {
-          await deleteLocalControl(key(record.id));
+          await deleteIndexedDbLocalControl(key(record.id));
         }
       }
       catch {
@@ -578,7 +578,7 @@ export function createTransferManager(options: ManagerOptions) {
     closeResources(item);
     resource.source = undefined;
     update(item, { status: type === "file-cancel" ? "cancelled" : "declined", needsSource: false, controlPending: true });
-    resource.controlSaving = saveLocalControl(key(id), type).catch((error) => {
+    resource.controlSaving = saveIndexedDbLocalControl(key(id), type).catch((error) => {
       update(item, { message: `Cannot save pending cancellation: ${asTransferError(error).message}` });
     });
     void resource.controlSaving.then(() => {

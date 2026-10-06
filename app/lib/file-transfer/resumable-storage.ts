@@ -1,7 +1,7 @@
 import type { FileSink } from "./storage";
 import type { LocalTransferKey } from "./recovery";
 import type { StorageCommand } from "./storage-worker";
-import { deleteCheckpoint, localTransferName, readCheckpoint, isCheckpointExpired, saveCheckpoint } from "./recovery";
+import { deleteIndexedDbCheckpoint, localTransferName, readIndexedDbCheckpoint, isCheckpointExpired, saveIndexedDbCheckpoint } from "./recovery";
 
 export interface ResumableFileSink extends FileSink {
   offset: number;
@@ -14,7 +14,7 @@ const reservations = new Map<string, number>();
 let preparing = Promise.resolve();
 
 export async function getLocalFile(key: LocalTransferKey, fingerprint: string, size: number) {
-  const saved = await readCheckpoint(key);
+  const saved = await readIndexedDbCheckpoint(key);
   if (!saved?.completed || isCheckpointExpired(saved) || saved.fingerprint !== fingerprint || saved.bytes !== size) return;
 
   try {
@@ -28,9 +28,9 @@ export async function getLocalFile(key: LocalTransferKey, fingerprint: string, s
 }
 
 export async function touchLocalFile(key: LocalTransferKey) {
-  const saved = await readCheckpoint(key);
+  const saved = await readIndexedDbCheckpoint(key);
   if (saved) {
-    await saveCheckpoint({ ...saved, updatedAt: Date.now() });
+    await saveIndexedDbCheckpoint({ ...saved, updatedAt: Date.now() });
   }
 }
 
@@ -45,7 +45,7 @@ export async function removeLocalFile(key: LocalTransferKey) {
       throw error;
     }
   }
-  await deleteCheckpoint(key);
+  await deleteIndexedDbCheckpoint(key);
 }
 
 export async function openResumableFileSink(key: LocalTransferKey, size: number, fingerprint: string): Promise<ResumableFileSink> {
@@ -58,7 +58,7 @@ export async function openResumableFileSink(key: LocalTransferKey, size: number,
       throw new Error("This file is already being received.");
     }
 
-    const saved = await readCheckpoint(key);
+    const saved = await readIndexedDbCheckpoint(key);
     const remaining = Math.max(0, size - (saved?.bytes ?? 0));
     const { quota, usage } = await navigator.storage.estimate();
     const reserved = [...reservations.values()].reduce((sum, bytes) => sum + bytes, 0);
