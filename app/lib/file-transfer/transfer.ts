@@ -19,9 +19,11 @@ interface TransferResources {
   session?: TransferSession;
   file?: File;
   attempt?: string;
-  ready: boolean;
+  // A sent offer, accept, or resume request allows file-start and prevents duplicate requests.
+  requestSent: boolean;
   preparing: boolean;
   pendingOffer?: boolean;
+  // Remembers whether the server may know this offer, even after interruption.
   offerSent?: boolean;
   generation: number;
   closing: Promise<void>;
@@ -44,12 +46,16 @@ interface TransferOptions {
 /** Owns the state, browser resources, and lifecycle of one file transfer. */
 export function createTransfer(item: TransferView, options: TransferOptions) {
   const resource: TransferResources = {
-    downloads: [], ready: false, preparing: false, generation: 0, closing: Promise.resolve(),
+    downloads: [], requestSent: false, preparing: false, generation: 0, closing: Promise.resolve(),
   };
   const { id } = item;
   const key = () => ({ userId: options.userId(), roomId: options.roomId, id });
   const publish = options.changed;
   let disposed = false;
+
+  function isCurrent(generation: number) {
+    return !disposed && resource.generation === generation;
+  }
 
   function update(patch: Partial<TransferView>) {
     Object.assign(item, patch);
@@ -74,7 +80,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     resource.session?.close();
     resource.session = undefined;
     resource.attempt = undefined;
-    resource.ready = false;
+    resource.requestSent = false;
     resource.preparing = false;
     resource.pendingOffer = false;
     const sink = resource.sink;
@@ -126,7 +132,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     try {
       const saved = await readIndexedDbCheckpoint(key());
       const file = await getLocalFile(key(), item.fingerprint ?? "", item.size);
-      if (disposed || resource.generation !== generation) return;
+      if (!isCurrent(generation)) return;
 
       resource.file = file;
       update({
@@ -164,12 +170,12 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       interrupt(record.message ?? "Transfer interrupted. Resume when both sides are ready.", false);
     }
     else if (record.status === "offered") {
-      if (resource.session || (resource.ready && record.message)) {
+      if (resource.session || (resource.requestSent && record.message)) {
         closeResources();
       }
       update({ status: "offered", message: record.message ?? undefined, needsSource: item.direction === "outgoing" && !resource.source });
     }
-    else if (!resource.session && !resource.preparing && !resource.ready) {
+    else if (!resource.session && !resource.preparing && !resource.requestSent) {
       update({ status: "interrupted", needsSource: item.direction === "outgoing" && !resource.source });
     }
     if (fresh || isFileTerminal(record.status)) {
@@ -195,8 +201,8 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
   async function verifySource(file: File) {
     const generation = resource.generation;
     update({ status: "verifying", message: undefined });
-    const fingerprint = await verifyFileFingerprint(file, () => disposed || resource.generation !== generation);
-    if (disposed || resource.generation !== generation) return false;
+    const fingerprint = await verifyFileFingerprint(file, () => !isCurrent(generation));
+    if (!isCurrent(generation)) return false;
     if (item.fingerprint && (item.fingerprint !== fingerprint || file.size !== item.size)) {
       throw new Error("Choose the original file. The selected file's contents do not match this transfer.");
     }
@@ -229,12 +235,12 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
   }
 
   function waitForConnection() {
-    resource.ready = false;
+    resource.requestSent = false;
     update({ status: "waiting-connection", message: undefined });
   }
 
   function sendOffer() {
-    if (disposed || resource.preparing || resource.ready || !resource.pendingOffer || !item.fingerprint) return;
+    if (disposed || resource.preparing || resource.requestSent || !resource.pendingOffer || !item.fingerprint) return;
 
     if (!options.historyReady() || !options.connected()) {
       waitForConnection();
@@ -242,8 +248,8 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     }
 
     update({ status: "offering", message: undefined });
-    resource.ready = send({ type: "file-offer", id: item.id, name: item.name, size: item.size, mime: item.mime, fingerprint: item.fingerprint });
-    if (resource.ready) {
+    resource.requestSent = send({ type: "file-offer", id: item.id, name: item.name, size: item.size, mime: item.mime, fingerprint: item.fingerprint });
+    if (resource.requestSent) {
       resource.offerSent = true;
     }
     else {
@@ -254,7 +260,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
   async function resume(file?: File, automatic = false) {
     if (disposed || isFileTerminal(item.status)) return;
 
-    if (resource.preparing || resource.ready || resource.session || resource.pendingControl) return;
+    if (resource.preparing || resource.requestSent || resource.session || resource.pendingControl) return;
     if (item.direction === "incoming" && item.persistedStatus === "offered" && automatic) return;
     if (item.direction === "outgoing" && !file && !resource.source) {
       update({ status: "interrupted", needsSource: true, message: "Reselect the original file to resume." });
@@ -272,12 +278,12 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       const request = item.direction === "outgoing"
         ? await prepareOutgoing(generation, file)
         : await prepareIncoming(generation, automatic);
-      if (!request || disposed || resource.generation !== generation) return;
+      if (!request || !isCurrent(generation)) return;
 
-      resource.ready = send(request);
-      if (disposed || resource.generation !== generation) return;
+      resource.requestSent = send(request);
+      if (!isCurrent(generation)) return;
 
-      if (!resource.ready) {
+      if (!resource.requestSent) {
         interrupt("Reconnect to resume this transfer.", false);
       }
       else {
@@ -292,7 +298,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     finally {
       if (resource.generation === generation) {
         resource.preparing = false;
-        if (!resource.ready && item.status === "preparing") {
+        if (!resource.requestSent && item.status === "preparing") {
           update({ status: item.persistedStatus === "offered" ? "offered" : "interrupted" });
         }
       }
@@ -303,7 +309,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     if (!mobilePermission()) return;
 
     await resource.closing;
-    if (disposed || resource.generation !== generation) return;
+    if (!isCurrent(generation)) return;
 
     if ((file || !item.fingerprint) && !await verifySource(file ?? resource.source!)) return;
     if (resource.pendingOffer) {
@@ -325,7 +331,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     if (!mobilePermission()) return;
 
     await resource.closing;
-    if (disposed || resource.generation !== generation) return;
+    if (!isCurrent(generation)) return;
 
     if (!item.fingerprint) {
       throw new Error("This older file offer cannot be resumed. Ask the sender to offer it again.");
@@ -334,7 +340,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     if (saved && isCheckpointExpired(saved)) {
       // Expiration reclaims data only on an explicit restart, never during history loading.
       await removeLocalFile(key());
-      if (disposed || resource.generation !== generation) return;
+      if (!isCurrent(generation)) return;
 
       update({ bytes: 0, localBytes: 0, hasLocalFile: false, expired: false });
     }
@@ -347,7 +353,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
       return;
     }
     const sink = await openResumableFileSink(key(), item.size, item.fingerprint);
-    if (disposed || resource.generation !== generation) {
+    if (!isCurrent(generation)) {
       await sink.pause();
       return;
     }
@@ -359,13 +365,13 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
   }
 
   function start(event: Extract<FileServerEvent, { type: "file-start" }>) {
-    if (resource.session || isFileTerminal(item.status) || !resource.ready) return;
+    if (resource.session || isFileTerminal(item.status) || !resource.requestSent) return;
     if (event.offset > item.size) return fail(new Error("Invalid resume position."));
 
     resource.attempt = event.attempt;
     update({ status: "connecting", bytes: event.offset, message: undefined });
     const generation = resource.generation;
-    const current = () => !disposed && resource.generation === generation && resource.attempt === event.attempt;
+    const current = () => isCurrent(generation) && resource.attempt === event.attempt;
     const shared = {
       id: item.id, roomId: options.roomId, offset: event.offset,
       sendSignal(signal: FileSignal) {
@@ -446,7 +452,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
         void resume(undefined, true);
         break;
       case "file-waiting":
-        if (resource.ready) {
+        if (resource.requestSent) {
           update({ status: "waiting" });
         }
         break;
@@ -561,7 +567,7 @@ export function createTransfer(item: TransferView, options: TransferOptions) {
     if (!isFileTerminal(item.status)) {
       if (resource.pendingOffer) {
         // Socket loss must not cancel local hashing or discard the selected File.
-        resource.ready = false;
+        resource.requestSent = false;
         if (!resource.preparing) {
           waitForConnection();
         }
