@@ -1,6 +1,6 @@
 import type { SessionOptions } from "./session";
 import { createTransportSession } from "./session";
-import { createFileSender } from "./sender";
+import { createFileSender } from "./data-sender";
 
 interface SendSessionOptions extends SessionOptions {
   source: File;

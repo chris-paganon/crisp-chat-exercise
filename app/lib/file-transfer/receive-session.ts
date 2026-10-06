@@ -1,7 +1,7 @@
 import type { SessionOptions, TransferSession } from "./session";
 import type { FileSink } from "./storage";
 import { createTransportSession } from "./session";
-import { createFileReceiver } from "./receiver";
+import { createFileReceiver } from "./data-receiver";
 
 interface ReceiveSessionOptions extends SessionOptions {
   size: number;
