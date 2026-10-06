@@ -59,7 +59,10 @@ useIntervalFn(async () => {
 </script>
 
 <template>
-  <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-end sm:right-6 sm:bottom-6 sm:left-auto sm:w-95">
+  <div
+    class="pointer-events-none fixed z-50 flex flex-col items-end sm:right-6 sm:bottom-6 sm:left-auto sm:w-95"
+    :class="open ? 'inset-0 sm:top-auto' : 'inset-x-4 bottom-4'"
+  >
     <Transition
       enter-active-class="origin-bottom-right transition-[opacity,transform] duration-200 motion-reduce:transition-none"
       leave-active-class="origin-bottom-right transition-[opacity,transform] duration-200 motion-reduce:transition-none"
@@ -69,7 +72,7 @@ useIntervalFn(async () => {
       <section
         v-if="open"
         id="visitor-conversation"
-        class="pointer-events-auto mb-3 flex h-[min(40rem,calc(100dvh-6rem))] w-full flex-col overflow-hidden rounded-xl border bg-background text-foreground shadow-xl sm:mb-4"
+        class="pointer-events-auto flex h-dvh w-full shrink-0 flex-col overflow-hidden bg-background text-foreground sm:mb-4 sm:h-[min(40rem,calc(100dvh-6rem))] sm:rounded-xl sm:border sm:shadow-xl"
         aria-label="Support conversation"
       >
         <header class="mx-4 flex shrink-0 items-center gap-3 border-b pt-3 pb-2 sm:pt-5 sm:pb-4">
@@ -168,6 +171,7 @@ useIntervalFn(async () => {
     </div>
     <UiButton
       class="pointer-events-auto ml-auto size-14 rounded-full shadow-lg transition-transform hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none sm:size-15"
+      :class="{ 'hidden sm:inline-flex': open }"
       size="icon-lg"
       type="button"
       :aria-label="open ? 'Close chat' : transferSummary ? `Open support chat: ${transferSummary.label}` : 'Open support chat'"
