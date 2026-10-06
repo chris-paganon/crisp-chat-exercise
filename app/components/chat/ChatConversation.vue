@@ -2,10 +2,11 @@
 import { MessageSquare } from "lucide-vue-next";
 import ChatFileTransfer from "@/components/chat/ChatFileTransfer.vue";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
-import { timeLabel } from "@/lib/date";
+import { useDateLabels } from "@/composables/useDateLabels";
 import { timestampMillis } from "~~/shared/utils/date";
 
 const props = defineProps<{ roomId: string; peerName: string }>();
+const { timeLabel } = useDateLabels();
 const { chat, messages: roomMessages, files } = useRoomSession(props.roomId);
 const { userId, connection, sessionEnded } = chat;
 const { messages, send, retry } = roomMessages;

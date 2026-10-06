@@ -2,11 +2,12 @@
 import { MessageSquare, RefreshCw } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { chatError } from "@/lib/chat-error";
-import { dateLabel } from "@/lib/date";
+import { useDateLabels } from "@/composables/useDateLabels";
 import type { ChatRoom } from "~~/shared/types/chat";
 import ChatTransferBadge from "@/components/chat/ChatTransferBadge.vue";
 
 const emit = defineEmits<{ open: []; claimError: [] }>();
+const { dateLabel } = useDateLabels();
 const { data: rooms, error: loadError, refresh } = useOperatorRooms();
 const transferSummaries = useRoomTransferSummaries();
 

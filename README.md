@@ -114,6 +114,14 @@ Network interruption preserves received checkpoints. Reopening both conversation
 
 Completed files remain available across reloads in the receiving browser. **Download** exports the local copy and refreshes its seven-day retention period. **Remove local file** releases browser storage while preserving the chat-history card. An expired partial can be discarded and received again with **Restart receiving**. Cancellation and decline remove partial data when cleanup succeeds, and pending offline cancellation is saved for replay before any resume.
 
+## Chat timestamps
+
+Database rows and server event data retain Drizzle's inferred `Date` fields. HTTP responses and WebSocket messages use native JSON serialization, which converts dates to UTC ISO strings such as `2026-10-06T12:34:56.789Z`. Shared `JsonSerialized<T>` types derive the frontend contract from those server types, including nested arrays and nullable dates. `ChatServerEventData` and `FileServerEventData` describe server values before serialization; `ChatServerEvent`, `FileServerEvent`, `ChatMessage`, `FileRecord`, and `ChatRoom` describe the JSON received by the frontend. The frontend trusts these backend contracts and does not revive date fields or maintain duplicate validation schemas.
+
+Keep entity timestamps as ISO strings in frontend state. Use `nowTimestamp()` from `shared/utils/date.ts` for optimistic records and `timestampMillis()` for comparisons. Persisted acknowledgements replace optimistic timestamps. Bind ISO strings directly to `<time datetime>`. For new payloads containing dates, derive their transport types with `JsonSerialized<T>` rather than declaring a database row as the frontend type.
+
+Use `useDateLabels()` for presentation: both date and time labels use `en-GB` and the browser's timezone. Server rendering and initial hydration use UTC; labels switch to the browser's timezone after mounting. The pure `createDateLabels(timeZone)` formatter accepts an explicit timezone. Numeric clocks retain their specific units: transfer checkpoint retention uses epoch milliseconds, and TURN credential expiry uses epoch seconds.
+
 ## Transfer architecture
 
 - PostgreSQL stores one `chat_file_transfer` row per file card: room and participants, file metadata and fingerprint, lifecycle status, timestamps, and a monotonically increasing version. Offers and lifecycle changes are saved before notification. Retried offers use the same UUID. Reconnecting loads text and file history, merging file records by version.
