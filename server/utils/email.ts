@@ -52,7 +52,7 @@ export async function sendAuthEmail(options: SendAuthEmailOptions) {
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e5e5;">
             <tr>
               <td style="padding:32px;">
-                <div style="margin-bottom:28px;font-size:20px;font-weight:700;">Dockiy</div>
+                <div style="margin-bottom:28px;font-size:20px;font-weight:700;">Crisp</div>
                 <h1 style="margin:0 0 16px;font-size:24px;line-height:1.3;">${options.title}</h1>
                 <p style="margin:0 0 12px;font-size:16px;line-height:1.6;">${greeting}</p>
                 <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">${options.body}</p>

@@ -11,8 +11,8 @@ definePageMeta({
 });
 
 useSeoMeta({
-  title: "Reset password | Dockiy",
-  description: "Choose a new password for your Dockiy account.",
+  title: "Reset password | Crisp",
+  description: "Choose a new password for your Crisp account.",
 });
 
 const route = useRoute();
@@ -113,7 +113,7 @@ const onSubmit = form.handleSubmit(async (values) => {
               Choose a new password
             </UiCardTitle>
             <UiCardDescription>
-              Enter a new password for your Dockiy account.
+              Enter a new password for your Crisp account.
             </UiCardDescription>
           </div>
         </UiCardHeader>

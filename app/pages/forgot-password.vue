@@ -10,8 +10,8 @@ definePageMeta({
 });
 
 useSeoMeta({
-  title: "Forgot password | Dockiy",
-  description: "Request a password reset link for your Dockiy account.",
+  title: "Forgot password | Crisp",
+  description: "Request a password reset link for your Crisp account.",
 });
 
 const isComplete = ref(false);
