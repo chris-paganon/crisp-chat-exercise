@@ -6,7 +6,7 @@ import { timeLabel } from "@/lib/date";
 
 const props = defineProps<{ roomId: string; peerName: string }>();
 const { chat, messages: roomMessages, files } = useRoomSession(props.roomId);
-const { userId, connection } = chat;
+const { userId, connection, sessionEnded } = chat;
 const { messages, send, retry } = roomMessages;
 const { transfers } = files;
 
@@ -155,6 +155,7 @@ async function sendMessage(body: string) {
     <ChatComposer
       v-model="draft"
       :disabled="connection !== 'connected'"
+      :attachments-disabled="sessionEnded"
       @send="sendMessage"
       @attach="files.offer"
     />

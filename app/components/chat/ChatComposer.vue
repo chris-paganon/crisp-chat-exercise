@@ -2,7 +2,7 @@
 import { Paperclip, SendHorizontal } from "lucide-vue-next";
 import { MAX_CHAT_MESSAGE_LENGTH } from "~~/shared/types/chat";
 
-const props = defineProps<{ disabled?: boolean }>();
+const props = defineProps<{ disabled?: boolean; attachmentsDisabled?: boolean }>();
 const draft = defineModel<string>({ default: "" });
 const emit = defineEmits<{ send: [body: string]; attach: [file: File] }>();
 
@@ -10,11 +10,11 @@ const fileInput = ref<HTMLInputElement>();
 
 function attach(event: Event) {
   const input = event.target as HTMLInputElement;
-  if (!props.disabled) {
-    for (const file of Array.from(input.files ?? [])) {
-      emit("attach", file);
-    }
+  // The socket may reconnect while the native picker is open.
+  for (const file of Array.from(input.files ?? [])) {
+    emit("attach", file);
   }
+
   input.value = "";
 }
 
@@ -65,14 +65,14 @@ function onEnter(event: KeyboardEvent) {
             type="file"
             multiple
             aria-label="Choose a file"
-            :disabled="disabled"
+            :disabled="attachmentsDisabled"
             @change="attach"
           >
           <UiButton
             variant="ghost"
             size="icon-sm"
             class="size-6 text-muted-foreground"
-            :disabled="disabled"
+            :disabled="attachmentsDisabled"
             type="button"
             aria-label="Attach a file"
             title="Attach files"
