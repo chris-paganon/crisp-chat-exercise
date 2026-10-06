@@ -28,7 +28,7 @@ const label = computed(() => {
     case "waiting-connection": return "Waiting for connection…";
     case "waiting": return "Waiting for the other participant or a free transfer slot…";
     case "offering": return "Sending offer…";
-    case "offered": return incoming.value ? "Wants to send you a file" : "Waiting for permission…";
+    case "offered": return incoming.value ? "Wants to send you a file" : "Waiting for recipient to accept…";
     case "preparing": return "Preparing storage…";
     case "connecting": return "Connecting to the other participant…";
     case "transferring": return incoming.value ? "Receiving…" : "Sending…";
