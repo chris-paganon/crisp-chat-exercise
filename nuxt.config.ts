@@ -38,6 +38,8 @@ export default defineNuxtConfig({
     brevoApiKey: "",
     brevoSenderEmail: "",
     brevoSenderName: "Dockiy",
+    turnSecret: "",
+    turnUrls: "",
     public: {
       appEnv: "local",
       umamiEnabled: false,
